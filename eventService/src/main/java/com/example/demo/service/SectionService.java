@@ -15,7 +15,7 @@ public interface SectionService {
 
     SectionRes getById(String id);
 
-    Section getEntityById(String id);
+    Section getSectionById(String id);
 
     List<SectionRes> getAll();
 

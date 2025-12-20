@@ -32,7 +32,7 @@ public class Event {
     private Map<String, Object> attributes;
 
     @ManyToOne
-    private Venue venue;        // Nerede?
+    private Venue venue;
 
     @OneToMany(mappedBy = "event")
     private List<PriceCategory> priceCategories;

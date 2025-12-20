@@ -1,0 +1,1 @@
+http://localhost:8099/webjars/swagger-ui/index.html?urls.primaryName=Event%20Service

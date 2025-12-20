@@ -62,15 +62,13 @@ public class PriceCategoryServiceImpl implements PriceCategoryService {
         category.setCurrency(request.currency());
         category.setTotalAllocation(request.totalAllocation());
 
-        // Event'i yükle ve set et
         if (request.eventId() != null) {
-            Event event = eventService.getEntityById(request.eventId());
+            Event event = eventService.getEventById(request.eventId());
             category.setEvent(event);
         }
 
-        // Section'ı yükle ve set et (opsiyonel)
         if (request.sectionId() != null) {
-            Section section = sectionService.getEntityById(request.sectionId());
+            Section section = sectionService.getSectionById(request.sectionId());
             category.setSection(section);
         }
 

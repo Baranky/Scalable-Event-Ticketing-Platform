@@ -15,7 +15,7 @@ public interface EventService {
 
     EventRes getById(String id);
 
-    Event getEntityById(String id);
+    Event getEventById(String id);
 
     List<EventRes> getAll();
 

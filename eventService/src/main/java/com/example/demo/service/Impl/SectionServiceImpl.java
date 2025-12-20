@@ -38,7 +38,7 @@ public class SectionServiceImpl implements SectionService {
     }
 
     @Override
-    public Section getEntityById(String id) {
+    public Section getSectionById(String id) {
         return sectionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Section not found: " + id));
     }

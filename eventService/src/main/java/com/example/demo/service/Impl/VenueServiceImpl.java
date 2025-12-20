@@ -14,7 +14,6 @@ import com.example.demo.service.VenueService;
 
 @Service
 public class VenueServiceImpl implements VenueService {
-
     private final VenueRepository venueRepository;
 
     public VenueServiceImpl(VenueRepository venueRepository) {
@@ -27,7 +26,6 @@ public class VenueServiceImpl implements VenueService {
         Venue saved = venueRepository.save(venue);
         return mapToResponse(saved);
     }
-
     @Override
     public VenueRes getById(String id) {
         Venue venue = venueRepository.findById(id)
@@ -36,7 +34,7 @@ public class VenueServiceImpl implements VenueService {
     }
 
     @Override
-    public Venue getEntityById(String id) {
+    public Venue getVenusById(String id) {
         return venueRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Venue not found: " + id));
     }

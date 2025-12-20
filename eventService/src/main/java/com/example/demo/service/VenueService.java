@@ -15,7 +15,7 @@ public interface VenueService {
 
     VenueRes getById(String id);
 
-    Venue getEntityById(String id);
+    Venue getVenusById(String id);
 
     List<VenueRes> getAll();
 

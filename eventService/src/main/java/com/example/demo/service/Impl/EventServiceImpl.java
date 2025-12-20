@@ -1,7 +1,9 @@
 package com.example.demo.service.Impl;
 
+import com.example.demo.dto.EventCreatedEvent;
 import com.example.demo.dto.EventReq;
 import com.example.demo.dto.EventRes;
+import com.example.demo.dto.PriceCategoryDetailRes;
 import com.example.demo.entity.Event;
 import com.example.demo.entity.Venue;
 import com.example.demo.enums.EventStatus;
@@ -13,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +42,6 @@ public class EventServiceImpl implements EventService {
         Event event = mapToEvent(request);
         Event saved = eventRepository.save(event);
 
-
         return mapToResponse(saved);
     }
 
@@ -53,7 +53,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public Event getEntityById(String id) {
+    public Event getEventById(String id) {
         return eventRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Event not found: " + id));
     }
@@ -89,25 +89,51 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Event not found: " + id));
 
-        if (event.getSalesStartDate() != null && event.getSalesStartDate().isAfter(LocalDateTime.now())) {
-            throw new IllegalStateException("Sales cannot be opened before salesStartDate");
-        }
-
         event.setStatus(EventStatus.SALES_OPEN);
         return mapToResponse(eventRepository.save(event));
     }
 
+    private void publishEventCreated(Event event) {
+        try {
+            String venueId = event.getVenue() != null ? event.getVenue().getId() : null;
+            List<PriceCategoryDetailRes> priceCategoryDetails = new ArrayList<>();
+            if (event.getPriceCategories() != null) {
+                for (var pc : event.getPriceCategories()) {
+                    String sectionId = pc.getSection() != null ? pc.getSection().getId() : null;
+                    priceCategoryDetails.add(new PriceCategoryDetailRes(
+                            pc.getId(),
+                            sectionId,
+                            pc.getPrice(),
+                            pc.getCurrency(),
+                            pc.getTotalAllocation()
+                    ));
+                }
+            }
+            EventCreatedEvent eventData = new EventCreatedEvent(
+                    "EVENT_CREATED",
+                    event.getId(),
+                    event.getName(),
+                    venueId,
+                    priceCategoryDetails
+            );
+            String payload = objectMapper.writeValueAsString(eventData);
+
+            System.out.println("Publishing EVENT_CREATED to Kafka: " + payload);
+            kafkaTemplate.send("event-events", "EVENT_CREATED", payload);
+            System.out.println("EVENT_CREATED published successfully for event: " + event.getId());
+
+        } catch (JsonProcessingException e) {
+            System.err.println("Failed to publish EVENT_CREATED event: " + e.getMessage());
+        }
+    }
     private EventRes mapToResponse(Event event) {
         String status = event.getStatus() != null ? event.getStatus().name() : null;
-
         String venueId = event.getVenue() != null ? event.getVenue().getId() : null;
-
         List<String> priceCategoryIds = event.getPriceCategories() != null
                 ? event.getPriceCategories().stream()
-                        .map(pc -> pc.getId())
-                        .toList()
+                .map(pc -> pc.getId())
+                .toList()
                 : List.of();
-
         return new EventRes(
                 event.getId(),
                 event.getName(),
@@ -136,7 +162,7 @@ public class EventServiceImpl implements EventService {
         event.setAttributes(request.attributes());
 
         if (request.venueId() != null) {
-            Venue venue = venueService.getEntityById(request.venueId());
+            Venue venue = venueService.getVenusById(request.venueId());
             event.setVenue(venue);
         }
 
@@ -145,64 +171,4 @@ public class EventServiceImpl implements EventService {
         return event;
     }
 
-    private void publishEventCreated(Event event) {
-        try {
-            String venueId = event.getVenue() != null ? event.getVenue().getId() : null;
-
-            List<PriceCategoryDetail> priceCategoryDetails = new ArrayList<>();
-            if (event.getPriceCategories() != null) {
-                for (var pc : event.getPriceCategories()) {
-                    String sectionId = pc.getSection() != null ? pc.getSection().getId() : null;
-                    priceCategoryDetails.add(new PriceCategoryDetail(
-                            pc.getId(),
-                            sectionId,
-                            pc.getPrice(),
-                            pc.getCurrency(),
-                            pc.getTotalAllocation()
-                    ));
-                }
-            }
-
-            if (priceCategoryDetails.isEmpty()) {
-                System.out.println("WARNING: No price categories found for event: " + event.getId()
-                        + ". No tickets will be created.");
-            }
-
-            EventCreatedEvent eventData = new EventCreatedEvent(
-                    "EVENT_CREATED",
-                    event.getId(),
-                    event.getName(),
-                    venueId,
-                    priceCategoryDetails
-            );
-            String payload = objectMapper.writeValueAsString(eventData);
-
-            System.out.println("Publishing EVENT_CREATED to Kafka: " + payload);
-            kafkaTemplate.send("event-events", "EVENT_CREATED", payload);
-            System.out.println("EVENT_CREATED published successfully for event: " + event.getId());
-
-        } catch (JsonProcessingException e) {
-            System.err.println("Failed to publish EVENT_CREATED event: " + e.getMessage());
-        }
-    }
-
-    private record PriceCategoryDetail(
-            String priceCategoryId,
-            String sectionId,
-            BigDecimal price,
-            String currency,
-            int totalAllocation
-            ) {
-
-    }
-
-    private record EventCreatedEvent(
-            String eventType,
-            String eventId,
-            String eventName,
-            String venueId,
-            List<PriceCategoryDetail> priceCategories
-            ) {
-
-    }
 }
