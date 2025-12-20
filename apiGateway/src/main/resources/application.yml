@@ -1,0 +1,138 @@
+server:
+  port: 8099
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+              - "http://localhost:4200"
+              - "http://localhost:5173"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+      routes:
+        # ==========================================
+        # SWAGGER UI ROTALARI (En üstte olmalı - öncelik için)
+        # ==========================================
+        # Swagger UI'nin kendi endpoint'leri Gateway'in içinde çalışır
+        # Bu route'lar diğer route'lardan önce kontrol edilmeli
+
+        - id: ticket-service
+          uri: lb://ticketService  # <--- Resimle eşleşti
+          predicates:
+            - Path=/api/tickets/**, /ticket-stocks/**, /api/locks/**
+          filters:
+            - RewritePath=/api/tickets/(?<segment>.*), /tickets/${segment}
+
+        # ORDER SERVICE (Resimdeki isim: orderService)
+        - id: order-service
+          uri: lb://orderService   # <--- Resimle eşleşti
+          predicates:
+            - Path=/api/orders/**
+
+        # PAYMENT SERVICE (Resimdeki isim: paymentService)
+        - id: payment-service
+          uri: lb://paymentService # <--- Resimle eşleşti
+          predicates:
+            - Path=/api/payments/**, /api/outbox/**
+
+        # IDENTITY SERVICE (Resimde yok ama mantıken identityService olmalı)
+        - id: identity-service
+          uri: lb://identityService
+          predicates:
+            - Path=/api/users/**, /api/auth/**
+
+        # NOTIFICATION SERVICE (Resimde yok ama mantıken notificationService olmalı)
+        - id: notification-service
+          uri: lb://notificationService
+          predicates:
+            - Path=/api/notifications/**
+
+        # ---------------------------------------------------
+        # 2. SWAGGER DOKÜMANTASYON ROTALARI
+        # ---------------------------------------------------
+        # Buradaki amaç: Gateway üzerinden /event-service/v3/api-docs çağrıldığında
+        # StripPrefix ile baştaki ismi silip, servise sadece /v3/api-docs göndermek.
+
+        - id: event-service-docs
+          uri: lb://eventService
+          predicates:
+            - Path=/event-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        - id: ticket-service-docs
+          uri: lb://ticketService
+          predicates:
+            - Path=/ticket-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        - id: order-service-docs
+          uri: lb://orderService
+          predicates:
+            - Path=/order-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        - id: payment-service-docs
+          uri: lb://paymentService
+          predicates:
+            - Path=/payment-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        - id: identity-service-docs
+          uri: lb://identityService
+          predicates:
+            - Path=/identity-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+        - id: notification-service-docs
+          uri: lb://notificationService
+          predicates:
+            - Path=/notification-service/v3/api-docs/**
+          filters:
+            - StripPrefix=1
+
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        enabled: true
+
+# SWAGGER ARAYÜZ LİSTESİ
+springdoc:
+  swagger-ui:
+    urls:
+      # Burada name kısmına ekranda görünmesini istediğiniz güzel ismi yazın
+      # url kısmı ise Gateway Route'daki Path ile eşleşmelidir
+      - name: Event Service
+        url: /event-service/v3/api-docs
+      - name: Ticket Service
+        url: /ticket-service/v3/api-docs
+      - name: Order Service
+        url: /order-service/v3/api-docs
+      - name: Payment Service
+        url: /payment-service/v3/api-docs
+      - name: Identity Service
+        url: /identity-service/v3/api-docs
+      - name: Notification Service
+        url: /notification-service/v3/api-docs
+    path: /swagger-ui.html
+    # Spring Cloud Gateway WebMVC'de redirect için
+    use-root-path: false
+  api-docs:
+    enabled: true
+    path: /v3/api-docs

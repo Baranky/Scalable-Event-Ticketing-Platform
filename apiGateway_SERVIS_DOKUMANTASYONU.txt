@@ -1,0 +1,23 @@
+================================================================================
+API GATEWAY SERVİSİ - CLASS VE METOD DOKÜMANTASYONU
+================================================================================
+
+Bu servis, tüm mikroservislere gelen istekleri yönlendiren merkezi bir API Gateway'dir.
+
+--------------------------------------------------------------------------------
+1. ApiGatewayApplication
+--------------------------------------------------------------------------------
+AÇIKLAMA: Spring Boot uygulamasının ana başlangıç sınıfıdır.
+İŞLEVİ: 
+  - Uygulamayı başlatır
+  - Service Discovery (Eureka) ile entegrasyonu sağlar
+
+METODLAR:
+  - main(String[] args): Uygulamayı başlatır
+
+NOTLAR:
+  - @EnableDiscoveryClient: Eureka Server'a kayıt olmayı sağlar
+  - Port: 8099
+  - application.yml dosyasında route tanımlamaları yapılır
+
+================================================================================

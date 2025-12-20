@@ -1,0 +1,4 @@
+# Bu klasör Nacos Server için kullanılmaktadır
+# Eski Eureka Server kodları kaldırılmıştır
+# Nacos Server Docker Compose ile çalıştırılır
+

@@ -1,0 +1,416 @@
+================================================================================
+EVENT SERVICE SERVİSİ - CLASS VE METOD DOKÜMANTASYONU
+================================================================================
+
+Bu servis, etkinlik (event) yönetimi ile ilgili tüm işlemleri yapar.
+
+--------------------------------------------------------------------------------
+1. EventServiceApplication
+--------------------------------------------------------------------------------
+AÇIKLAMA: Spring Boot uygulamasının ana başlangıç sınıfıdır.
+İŞLEVİ: 
+  - Uygulamayı başlatır
+  - Feign Client desteğini aktif eder (diğer servislere HTTP çağrıları için)
+
+METODLAR:
+  - main(String[] args): Uygulamayı başlatır
+
+NOTLAR:
+  - Port: 8085
+  - @EnableFeignClients: Feign Client kullanımını aktif eder
+
+--------------------------------------------------------------------------------
+2. EventController
+--------------------------------------------------------------------------------
+AÇIKLAMA: Event ile ilgili HTTP endpoint'lerini sağlar.
+İŞLEVİ: REST API endpoint'leri sunar
+
+METODLAR:
+  - create(EventReq request): Yeni bir etkinlik oluşturur (POST /api/events)
+  - getById(String id): ID'ye göre etkinlik getirir (GET /api/events/{id})
+  - getAll(): Tüm etkinlikleri getirir (GET /api/events)
+  - delete(String id): Etkinliği siler (DELETE /api/events/{id})
+  - publish(String id): Etkinliği yayınlar ve Kafka'ya EVENT_CREATED event'i gönderir (POST /api/events/{id}/publish)
+  - openSales(String id): Etkinlik satışlarını açar (POST /api/events/{id}/open-sales)
+
+--------------------------------------------------------------------------------
+3. EventService (Interface)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Event işlemleri için servis arayüzü
+İŞLEVİ: Event işlemlerinin metod imzalarını tanımlar
+
+METODLAR:
+  - create(EventReq request): Etkinlik oluşturma
+  - getById(String id): ID'ye göre etkinlik getirme
+  - getEntityById(String id): Entity olarak etkinlik getirme (iç kullanım için)
+  - getAll(): Tüm etkinlikleri getirme
+  - delete(String id): Etkinlik silme
+  - publish(String id): Etkinlik yayınlama
+  - openSales(String id): Satışları açma
+
+--------------------------------------------------------------------------------
+4. EventServiceImpl
+--------------------------------------------------------------------------------
+AÇIKLAMA: EventService interface'inin implementasyonu
+İŞLEVİ: Event işlemlerinin gerçek implementasyonunu yapar
+
+METODLAR:
+  - create(EventReq request): 
+      * EventReq'den Event entity'sine dönüşüm yapar
+      * Venue bilgisini yükler
+      * Status'ü DRAFT olarak ayarlar
+      * Veritabanına kaydeder
+  
+  - getById(String id): 
+      * ID'ye göre etkinlik bulur
+      * EventRes DTO'suna dönüştürür
+  
+  - getEntityById(String id): 
+      * Entity olarak döner (diğer servisler için)
+  
+  - getAll(): 
+      * Tüm etkinlikleri getirir ve DTO'ya dönüştürür
+  
+  - delete(String id): 
+      * Etkinliği siler
+  
+  - publish(String id): 
+      * Etkinliğin status'ünü PUBLISHED yapar
+      * Kafka'ya EVENT_CREATED event'i gönderir
+      * Bu event Ticket Service tarafından dinlenir ve bilet stoku oluşturulur
+  
+  - openSales(String id): 
+      * Satış başlangıç tarihini kontrol eder
+      * Status'ü SALES_OPEN yapar
+  
+  - mapToResponse(Event event): 
+      * Event entity'sini EventRes DTO'suna dönüştürür
+  
+  - mapToEvent(EventReq request): 
+      * EventReq DTO'sunu Event entity'sine dönüştürür
+  
+  - publishEventCreated(Event event): 
+      * Kafka'ya EVENT_CREATED event'i gönderir
+      * Event ID, Venue ID ve Price Category detaylarını içerir
+
+--------------------------------------------------------------------------------
+5. VenueController
+--------------------------------------------------------------------------------
+AÇIKLAMA: Mekan (venue) yönetimi için HTTP endpoint'leri
+İŞLEVİ: Mekan CRUD işlemleri
+
+METODLAR:
+  - create(VenueReq request): Yeni mekan oluşturur (POST /api/venues)
+  - getById(String id): ID'ye göre mekan getirir (GET /api/venues/{id})
+  - getAll(): Tüm mekanları getirir (GET /api/venues)
+  - delete(String id): Mekanı siler (DELETE /api/venues/{id})
+
+--------------------------------------------------------------------------------
+6. VenueService (Interface)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Venue işlemleri için servis arayüzü
+
+METODLAR:
+  - create(VenueReq request): Mekan oluşturma
+  - getById(String id): ID'ye göre mekan getirme
+  - getEntityById(String id): Entity olarak mekan getirme
+  - getAll(): Tüm mekanları getirme
+  - delete(String id): Mekan silme
+
+--------------------------------------------------------------------------------
+7. VenueServiceImpl
+--------------------------------------------------------------------------------
+AÇIKLAMA: VenueService implementasyonu
+
+METODLAR:
+  - create(VenueReq request): 
+      * VenueReq'den Venue entity'sine dönüşüm yapar
+      * Veritabanına kaydeder
+  
+  - getById(String id): 
+      * ID'ye göre mekan bulur ve DTO'ya dönüştürür
+  
+  - getEntityById(String id): 
+      * Entity olarak döner
+  
+  - getAll(): 
+      * Tüm mekanları getirir ve DTO'ya dönüştürür
+  
+  - delete(String id): 
+      * Mekanı siler
+  
+  - mapToEntity(VenueReq request): 
+      * VenueReq'den Venue entity'sine dönüşüm
+  
+  - mapToResponse(Venue venue): 
+      * Venue entity'sinden VenueRes DTO'suna dönüşüm
+
+--------------------------------------------------------------------------------
+8. PriceCategoryController
+--------------------------------------------------------------------------------
+AÇIKLAMA: Fiyat kategorisi yönetimi için HTTP endpoint'leri
+
+METODLAR:
+  - create(PriceCategoryReq request): Fiyat kategorisi oluşturur (POST /api/price-categories)
+  - getById(String id): ID'ye göre fiyat kategorisi getirir (GET /api/price-categories/{id})
+  - getAll(): Tüm fiyat kategorilerini getirir (GET /api/price-categories)
+  - delete(String id): Fiyat kategorisini siler (DELETE /api/price-categories/{id})
+
+--------------------------------------------------------------------------------
+9. PriceCategoryService (Interface)
+--------------------------------------------------------------------------------
+AÇIKLAMA: PriceCategory işlemleri için servis arayüzü
+
+METODLAR:
+  - create(PriceCategoryReq request): Fiyat kategorisi oluşturma
+  - getById(String id): ID'ye göre fiyat kategorisi getirme
+  - getAll(): Tüm fiyat kategorilerini getirme
+  - delete(String id): Fiyat kategorisini silme
+
+--------------------------------------------------------------------------------
+10. PriceCategoryServiceImpl
+--------------------------------------------------------------------------------
+AÇIKLAMA: PriceCategoryService implementasyonu
+
+METODLAR:
+  - create(PriceCategoryReq request): 
+      * Event ve Section bilgilerini yükler
+      * PriceCategory entity'sini oluşturur ve kaydeder
+  
+  - getById(String id): 
+      * ID'ye göre fiyat kategorisi bulur ve DTO'ya dönüştürür
+  
+  - getAll(): 
+      * Tüm fiyat kategorilerini getirir
+  
+  - delete(String id): 
+      * Fiyat kategorisini siler
+  
+  - mapToEntity(PriceCategoryReq request): 
+      * Event ve Section ilişkilerini kurar
+  
+  - mapToResponse(PriceCategory category): 
+      * Entity'den DTO'ya dönüşüm
+
+--------------------------------------------------------------------------------
+11. SectionController
+--------------------------------------------------------------------------------
+AÇIKLAMA: Bölüm (section) yönetimi için HTTP endpoint'leri
+
+METODLAR:
+  - create(SectionReq request): Bölüm oluşturur (POST /api/sections)
+  - getById(String id): ID'ye göre bölüm getirir (GET /api/sections/{id})
+  - getAll(): Tüm bölümleri getirir (GET /api/sections)
+  - delete(String id): Bölümü siler (DELETE /api/sections/{id})
+
+--------------------------------------------------------------------------------
+12. SectionService (Interface)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Section işlemleri için servis arayüzü
+
+METODLAR:
+  - create(SectionReq request): Bölüm oluşturma
+  - getById(String id): ID'ye göre bölüm getirme
+  - getEntityById(String id): Entity olarak bölüm getirme
+  - getAll(): Tüm bölümleri getirme
+  - delete(String id): Bölüm silme
+
+--------------------------------------------------------------------------------
+13. SectionServiceImpl
+--------------------------------------------------------------------------------
+AÇIKLAMA: SectionService implementasyonu
+
+METODLAR:
+  - create(SectionReq request): 
+      * Venue bilgisini yükler
+      * Section entity'sini oluşturur
+  
+  - getById(String id): 
+      * ID'ye göre bölüm bulur
+  
+  - getEntityById(String id): 
+      * Entity olarak döner
+  
+  - getAll(): 
+      * Tüm bölümleri getirir
+  
+  - delete(String id): 
+      * Bölümü siler
+  
+  - mapToEntity(SectionReq request): 
+      * Venue ilişkisini kurar
+  
+  - mapToResponse(Section section): 
+      * Entity'den DTO'ya dönüşüm
+
+--------------------------------------------------------------------------------
+14. PerformerController
+--------------------------------------------------------------------------------
+AÇIKLAMA: Sanatçı (performer) yönetimi için HTTP endpoint'leri
+
+METODLAR:
+  - create(PerformerReq request): Sanatçı oluşturur (POST /api/performers)
+  - getById(String id): ID'ye göre sanatçı getirir (GET /api/performers/{id})
+  - getAll(): Tüm sanatçıları getirir (GET /api/performers)
+  - delete(String id): Sanatçıyı siler (DELETE /api/performers/{id})
+
+--------------------------------------------------------------------------------
+15. PerformerService (Interface)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Performer işlemleri için servis arayüzü
+
+METODLAR:
+  - create(PerformerReq request): Sanatçı oluşturma
+  - getById(String id): ID'ye göre sanatçı getirme
+  - getAll(): Tüm sanatçıları getirme
+  - delete(String id): Sanatçı silme
+
+--------------------------------------------------------------------------------
+16. PerformerServiceImpl
+--------------------------------------------------------------------------------
+AÇIKLAMA: PerformerService implementasyonu
+
+METODLAR:
+  - create(PerformerReq request): 
+      * PerformerReq'den Performer entity'sine dönüşüm yapar
+  
+  - getById(String id): 
+      * ID'ye göre sanatçı bulur
+  
+  - getAll(): 
+      * Tüm sanatçıları getirir
+  
+  - delete(String id): 
+      * Sanatçıyı siler
+  
+  - mapToEntity(PerformerReq request): 
+      * Entity oluşturma
+  
+  - mapToResponse(Performer performer): 
+      * Entity'den DTO'ya dönüşüm
+
+--------------------------------------------------------------------------------
+17. Event (Entity)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Etkinlik veritabanı entity'si
+İŞLEVİ: Etkinlik bilgilerini veritabanında saklar
+
+ALANLAR:
+  - id: Etkinlik ID'si (UUID)
+  - name: Etkinlik adı
+  - description: Açıklama
+  - imageUrl: Görsel URL'i
+  - eventDate: Etkinlik tarihi
+  - doorsOpen: Kapı açılış saati
+  - salesStartDate: Satış başlangıç tarihi
+  - salesEndDate: Satış bitiş tarihi
+  - status: Etkinlik durumu (DRAFT, PUBLISHED, SALES_OPEN, vb.)
+  - attributes: JSON formatında ek özellikler
+  - venue: Mekan bilgisi (ManyToOne ilişki)
+  - priceCategories: Fiyat kategorileri (OneToMany ilişki)
+
+--------------------------------------------------------------------------------
+18. Venue (Entity)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Mekan veritabanı entity'si
+
+ALANLAR:
+  - id: Mekan ID'si
+  - name: Mekan adı
+  - city: Şehir
+  - address: Adres
+  - capacity: Kapasite
+  - latitude: Enlem
+  - longitude: Boylam
+  - sections: Bölümler (OneToMany ilişki)
+
+--------------------------------------------------------------------------------
+19. PriceCategory (Entity)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Fiyat kategorisi veritabanı entity'si
+
+ALANLAR:
+  - id: Fiyat kategorisi ID'si
+  - price: Fiyat
+  - currency: Para birimi
+  - totalAllocation: Toplam tahsis edilen bilet sayısı
+  - event: Etkinlik (ManyToOne ilişki)
+  - section: Bölüm (ManyToOne ilişki)
+
+--------------------------------------------------------------------------------
+20. Section (Entity)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Bölüm veritabanı entity'si
+
+ALANLAR:
+  - id: Bölüm ID'si
+  - name: Bölüm adı
+  - capacity: Kapasite
+  - hasSeats: Koltuklu mu?
+  - venue: Mekan (ManyToOne ilişki)
+
+--------------------------------------------------------------------------------
+21. Performer (Entity)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Sanatçı veritabanı entity'si
+
+ALANLAR:
+  - id: Sanatçı ID'si
+  - name: Sanatçı adı
+  - type: Sanatçı tipi
+
+--------------------------------------------------------------------------------
+22. EventRepository
+--------------------------------------------------------------------------------
+AÇIKLAMA: Event entity'si için JPA Repository
+İŞLEVİ: Veritabanı CRUD işlemleri
+
+METODLAR:
+  - JpaRepository'den gelen standart metodlar (save, findById, findAll, delete, vb.)
+
+--------------------------------------------------------------------------------
+23. VenueRepository
+--------------------------------------------------------------------------------
+AÇIKLAMA: Venue entity'si için JPA Repository
+
+METODLAR:
+  - JpaRepository'den gelen standart metodlar
+
+--------------------------------------------------------------------------------
+24. PriceCategoryRepository
+--------------------------------------------------------------------------------
+AÇIKLAMA: PriceCategory entity'si için JPA Repository
+
+METODLAR:
+  - JpaRepository'den gelen standart metodlar
+
+--------------------------------------------------------------------------------
+25. SectionRepository
+--------------------------------------------------------------------------------
+AÇIKLAMA: Section entity'si için JPA Repository
+
+METODLAR:
+  - JpaRepository'den gelen standart metodlar
+
+--------------------------------------------------------------------------------
+26. PerformerRepository
+--------------------------------------------------------------------------------
+AÇIKLAMA: Performer entity'si için JPA Repository
+
+METODLAR:
+  - JpaRepository'den gelen standart metodlar
+
+--------------------------------------------------------------------------------
+27. EventStatus (Enum)
+--------------------------------------------------------------------------------
+AÇIKLAMA: Etkinlik durumları
+
+DEĞERLER:
+  - DRAFT: Taslak
+  - PUBLISHED: Yayınlandı
+  - SALES_OPEN: Satışlar açık
+  - SOLD_OUT: Tükendi
+  - CANCELLED: İptal edildi
+  - FINISHED: Bitti
+
+================================================================================

@@ -1,0 +1,20 @@
+package com.example.demo.service;
+
+import com.example.demo.Enums.TicketStatus;
+import com.example.demo.dto.TicketHistoryRes;
+import com.example.demo.model.Ticket;
+
+import java.util.List;
+
+public interface TicketHistoryService {
+
+    void recordStatusChange(Ticket ticket,
+                            TicketStatus previousStatus,
+                            TicketStatus newStatus,
+                            String changedBy,
+                            String reason);
+
+    List<TicketHistoryRes> getHistoryByTicketId(String ticketId);
+}
+
+
