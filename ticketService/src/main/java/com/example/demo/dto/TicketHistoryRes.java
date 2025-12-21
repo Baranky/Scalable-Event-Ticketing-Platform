@@ -1,6 +1,6 @@
 package com.example.demo.dto;
 
-import com.example.demo.Enums.TicketStatus;
+import com.example.demo.enums.TicketStatus;
 
 import java.time.LocalDateTime;
 

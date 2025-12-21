@@ -339,7 +339,6 @@ public class SeatLockServiceImpl implements SeatLockService {
                 return Integer.parseInt(genericCount.toString());
             }
 
-            // Numaralı koltukları say
             String pattern = SEAT_LOCK_PREFIX + stockId + ":*";
             Set<String> keys = redisTemplate.keys(pattern);
             int count = 0;
@@ -359,10 +358,6 @@ public class SeatLockServiceImpl implements SeatLockService {
         }
     }
 
-    private void incrementTotalLock(String stockId, int count) {
-        String key = TOTAL_LOCK_PREFIX + stockId;
-        redisTemplate.opsForValue().increment(key, count);
-    }
 
     private void decrementTotalLock(String stockId, int count) {
         String key = TOTAL_LOCK_PREFIX + stockId;

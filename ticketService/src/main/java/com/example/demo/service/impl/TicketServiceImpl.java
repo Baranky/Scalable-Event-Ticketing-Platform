@@ -9,36 +9,36 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.demo.Enums.TicketStatus;
 import com.example.demo.dto.TicketHistoryRes;
 import com.example.demo.dto.TicketPurchaseReq;
 import com.example.demo.dto.TicketRes;
+import com.example.demo.enums.TicketStatus;
 import com.example.demo.model.Ticket;
 import com.example.demo.model.TicketStock;
 import com.example.demo.repository.TicketRepository;
-import com.example.demo.repository.TicketStockRepository;
 import com.example.demo.service.TicketHistoryService;
 import com.example.demo.service.TicketService;
+import com.example.demo.service.TicketStockService;
 
 @Service
 public class TicketServiceImpl implements TicketService {
 
     private final TicketRepository ticketRepository;
-    private final TicketStockRepository ticketStockRepository;
+    private final TicketStockService ticketStockService;
     private final TicketHistoryService ticketHistoryService;
 
     public TicketServiceImpl(TicketRepository ticketRepository,
-            TicketStockRepository ticketStockRepository,
+            TicketStockService ticketStockService,
             TicketHistoryService ticketHistoryService) {
         this.ticketRepository = ticketRepository;
-        this.ticketStockRepository = ticketStockRepository;
+        this.ticketStockService = ticketStockService;
         this.ticketHistoryService = ticketHistoryService;
     }
 
     @Override
     @Transactional
     public List<TicketRes> purchaseTickets(TicketPurchaseReq request) {
-        TicketStock stock = ticketStockRepository.findByIdWithLock(request.stockId())
+        TicketStock stock = ticketStockService.getStockEntityByIdWithLock(request.stockId())
                 .orElseThrow(() -> new RuntimeException("Stock not found: " + request.stockId()));
 
         if (stock.getAvailableCount() < request.quantity()) {
@@ -46,9 +46,7 @@ public class TicketServiceImpl implements TicketService {
                     + ", Available: " + stock.getAvailableCount());
         }
 
-        stock.setAvailableCount(stock.getAvailableCount() - request.quantity());
-        stock.setSoldCount(stock.getSoldCount() + request.quantity());
-        ticketStockRepository.save(stock);
+        ticketStockService.decrementAvailableAndIncrementSold(request.stockId(), request.quantity());
 
         List<Ticket> tickets = new ArrayList<>();
         for (int i = 0; i < request.quantity(); i++) {
@@ -64,7 +62,6 @@ public class TicketServiceImpl implements TicketService {
             ticket.setQrCode(generateQRCode());
             ticket.setPurchasedAt(LocalDateTime.now());
 
-            // Koltuk numarası varsa ata
             if (request.seatLabels() != null && i < request.seatLabels().size()) {
                 ticket.setSeatLabel(request.seatLabels().get(i));
             } else {
@@ -158,15 +155,8 @@ public class TicketServiceImpl implements TicketService {
 
         Ticket saved = ticketRepository.save(ticket);
 
-        TicketStock stock = ticketStockRepository.findByEventIdAndPriceCategoryId(
-                ticket.getEventId(), ticket.getPriceCategoryId())
-                .orElse(null);
-
-        if (stock != null) {
-            stock.setAvailableCount(stock.getAvailableCount() + 1);
-            stock.setSoldCount(stock.getSoldCount() - 1);
-            ticketStockRepository.save(stock);
-        }
+        ticketStockService.incrementAvailableAndDecrementSold(
+                ticket.getEventId(), ticket.getPriceCategoryId());
 
         ticketHistoryService.recordStatusChange(saved, previousStatus, TicketStatus.REFUNDED,
                 refundedBy, reason != null ? reason : "Refund Request");

@@ -1,19 +1,18 @@
 package com.example.demo.service.Impl;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.example.demo.dto.VenueReq;
 import com.example.demo.dto.VenueRes;
-import com.example.demo.entity.Section;
 import com.example.demo.entity.Venue;
 import com.example.demo.repository.VenueRepository;
 import com.example.demo.service.VenueService;
 
 @Service
 public class VenueServiceImpl implements VenueService {
+
     private final VenueRepository venueRepository;
 
     public VenueServiceImpl(VenueRepository venueRepository) {
@@ -26,6 +25,7 @@ public class VenueServiceImpl implements VenueService {
         Venue saved = venueRepository.save(venue);
         return mapToResponse(saved);
     }
+
     @Override
     public VenueRes getById(String id) {
         Venue venue = venueRepository.findById(id)
@@ -64,12 +64,6 @@ public class VenueServiceImpl implements VenueService {
     }
 
     private VenueRes mapToResponse(Venue venue) {
-        List<String> sectionIds = venue.getSections() != null
-                ? venue.getSections().stream()
-                        .map(Section::getId)
-                        .collect(Collectors.toList())
-                : List.of();
-
         return new VenueRes(
                 venue.getId(),
                 venue.getName(),
@@ -77,8 +71,7 @@ public class VenueServiceImpl implements VenueService {
                 venue.getAddress(),
                 venue.getCapacity(),
                 venue.getLatitude(),
-                venue.getLongitude(),
-                sectionIds
+                venue.getLongitude()
         );
     }
 }

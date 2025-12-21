@@ -13,8 +13,8 @@ import java.util.function.Supplier;
 @Service
 public class DistributedLockServiceImpl implements DistributedLockService {
 
-    private static final long DEFAULT_WAIT_TIME = 10; // saniye
-    private static final long DEFAULT_LEASE_TIME = 30; // saniye
+    private static final long DEFAULT_WAIT_TIME = 10;
+    private static final long DEFAULT_LEASE_TIME = 30;
 
     private final RedissonClient redissonClient;
 

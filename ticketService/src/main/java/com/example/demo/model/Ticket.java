@@ -1,6 +1,6 @@
 package com.example.demo.model;
 
-import com.example.demo.Enums.TicketStatus;
+import com.example.demo.enums.TicketStatus;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;

@@ -1,5 +1,6 @@
 package com.example.demo.consumer;
 
+import com.example.demo.dto.PaymentEvent;
 import com.example.demo.service.PaymentEventHandlerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -33,13 +34,6 @@ public class PaymentEventConsumer {
         }
     }
 
-    private record PaymentEvent(
-            String eventType,
-            String paymentId,
-            String orderId,
-            String userId,
-            String status
-    ) {
-    }
+
 }
 

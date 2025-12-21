@@ -1,12 +1,11 @@
 package com.example.demo.consumer;
 
-import com.example.demo.service.TicketStockService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.util.List;
+import com.example.demo.dto.EventCreatedEvent;
+import com.example.demo.service.TicketStockService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
 public class EventCreatedConsumer {
@@ -43,23 +42,4 @@ public class EventCreatedConsumer {
         }
     }
 
-    public record PriceCategoryDetail(
-            String priceCategoryId,
-            String sectionId,
-            BigDecimal price,
-            String currency,
-            int totalAllocation
-            ) {
-
-    }
-
-    private record EventCreatedEvent(
-            String eventType,
-            String eventId,
-            String eventName,
-            String venueId,
-            List<PriceCategoryDetail> priceCategories
-            ) {
-
-    }
 }

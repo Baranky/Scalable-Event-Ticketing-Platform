@@ -1,4 +1,4 @@
-package com.example.demo.Enums;
+package com.example.demo.enums;
 
 public enum TicketStatus {
     SOLD,

@@ -1,5 +1,11 @@
 package com.example.demo.service.Impl;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+
 import com.example.demo.dto.EventCreatedEvent;
 import com.example.demo.dto.EventReq;
 import com.example.demo.dto.EventRes;
@@ -12,12 +18,6 @@ import com.example.demo.service.EventService;
 import com.example.demo.service.VenueService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 public class EventServiceImpl implements EventService {
@@ -76,12 +76,14 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Event not found: " + id));
         event.setStatus(EventStatus.PUBLISHED);
-        Event saved = eventRepository.save(event);
+        eventRepository.save(event);
 
+        Event eventWithRelations = eventRepository.findByIdWithRelations(id)
+                .orElseThrow(() -> new RuntimeException("Event not found: " + id));
 
-        publishEventCreated(saved);
+        publishEventCreated(eventWithRelations);
 
-        return mapToResponse(saved);
+        return mapToResponse(eventWithRelations);
     }
 
     @Override
@@ -126,13 +128,14 @@ public class EventServiceImpl implements EventService {
             System.err.println("Failed to publish EVENT_CREATED event: " + e.getMessage());
         }
     }
+
     private EventRes mapToResponse(Event event) {
         String status = event.getStatus() != null ? event.getStatus().name() : null;
         String venueId = event.getVenue() != null ? event.getVenue().getId() : null;
         List<String> priceCategoryIds = event.getPriceCategories() != null
                 ? event.getPriceCategories().stream()
-                .map(pc -> pc.getId())
-                .toList()
+                        .map(pc -> pc.getId())
+                        .toList()
                 : List.of();
         return new EventRes(
                 event.getId(),

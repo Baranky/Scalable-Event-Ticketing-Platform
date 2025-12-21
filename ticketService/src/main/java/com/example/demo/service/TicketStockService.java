@@ -1,24 +1,21 @@
 package com.example.demo.service;
 
-import com.example.demo.consumer.EventCreatedConsumer.PriceCategoryDetail;
-import com.example.demo.model.TicketStock;
-
 import java.util.List;
 import java.util.Optional;
 
-public interface TicketStockService {
+import com.example.demo.dto.PriceCategoryDetail;
+import com.example.demo.dto.TicketStockRes;
+import com.example.demo.model.TicketStock;
 
+public interface TicketStockService {
 
     void createTicketStockForEvent(String eventId, String venueId, List<PriceCategoryDetail> priceCategories);
 
+    Optional<TicketStockRes> getStockById(String stockId);
 
-    Optional<TicketStock> getStockById(String stockId);
+    List<TicketStockRes> getStocksByEventId(String eventId);
 
-
-    List<TicketStock> getStocksByEventId(String eventId);
-
-
-    Optional<TicketStock> getStockByEventAndPriceCategory(String eventId, String priceCategoryId);
+    Optional<TicketStockRes> getStockByEventAndPriceCategory(String eventId, String priceCategoryId);
 
     boolean lockTickets(String stockId, int count, String orderId, List<String> seatLabels);
 
@@ -26,8 +23,11 @@ public interface TicketStockService {
 
     boolean unlockTickets(String stockId, int count, String orderId);
 
-
     int getRedisLockedCount(String stockId);
 
-    TicketStock save(TicketStock stock);
+    Optional<TicketStock> getStockEntityByIdWithLock(String stockId);
+
+    void decrementAvailableAndIncrementSold(String stockId, int quantity);
+
+    void incrementAvailableAndDecrementSold(String eventId, String priceCategoryId);
 }

@@ -12,11 +12,6 @@ import java.util.List;
 @Service
 public class PaymentEventHandlerServiceImpl implements PaymentEventHandlerService {
 
-    private final TicketStockRepository ticketStockRepository;
-
-    public PaymentEventHandlerServiceImpl(TicketStockRepository ticketStockRepository) {
-        this.ticketStockRepository = ticketStockRepository;
-    }
 
     @Override
     @Transactional
@@ -33,21 +28,5 @@ public class PaymentEventHandlerServiceImpl implements PaymentEventHandlerServic
         System.out.println("Payment failed event received for order: " + orderId);
         System.out.println("Stock unlock should be handled by OrderService");
 
-    }
-
-    public void handleOrderCancelled(String eventId, String priceCategoryId, int count) {
-        try {
-            TicketStock stock = ticketStockRepository
-                    .findByEventIdAndPriceCategoryIdWithLock(eventId, priceCategoryId)
-                    .orElse(null);
-
-            if (stock != null && stock.getLockedCount() >= count) {
-                stock.unlockTickets(count);
-                ticketStockRepository.save(stock);
-                System.out.println("Unlocked " + count + " tickets for event: " + eventId);
-            }
-        } catch (Exception e) {
-            System.err.println("Failed to unlock tickets: " + e.getMessage());
-        }
     }
 }

@@ -1,56 +1,50 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.TicketStockRes;
-import com.example.demo.model.TicketStock;
-import com.example.demo.service.TicketStockService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.demo.dto.TicketStockRes;
+import com.example.demo.service.TicketStockService;
 
 @RestController
 @RequestMapping("/ticket-stocks")
 public class TicketStockController {
 
     private final TicketStockService ticketStockService;
-    private final com.example.demo.repository.TicketStockRepository ticketStockRepository;
 
-    public TicketStockController(TicketStockService ticketStockService,
-            com.example.demo.repository.TicketStockRepository ticketStockRepository) {
+    public TicketStockController(TicketStockService ticketStockService) {
         this.ticketStockService = ticketStockService;
-        this.ticketStockRepository = ticketStockRepository;
     }
-
 
     @GetMapping("/{id}")
     public ResponseEntity<TicketStockRes> getStockById(@PathVariable String id) {
-        TicketStock stock = ticketStockRepository.findById(id)
+        TicketStockRes stock = ticketStockService.getStockById(id)
                 .orElseThrow(() -> new RuntimeException("Stock not found: " + id));
-        return ResponseEntity.ok(mapToResponse(stock));
+        return ResponseEntity.ok(stock);
     }
-
 
     @GetMapping("/by-event/{eventId}")
     public ResponseEntity<List<TicketStockRes>> getStocksByEvent(@PathVariable String eventId) {
-        List<TicketStock> stocks = ticketStockService.getStocksByEventId(eventId);
-        List<TicketStockRes> response = stocks.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        List<TicketStockRes> response = ticketStockService.getStocksByEventId(eventId);
         return ResponseEntity.ok(response);
     }
-
 
     @GetMapping("/by-event/{eventId}/price-category/{priceCategoryId}")
     public ResponseEntity<TicketStockRes> getStockByEventAndPriceCategory(
             @PathVariable String eventId,
             @PathVariable String priceCategoryId) {
-        TicketStock stock = ticketStockService.getStockByEventAndPriceCategory(eventId, priceCategoryId)
-                .orElseThrow(() -> new RuntimeException("Stock not found for event: " + eventId 
-                        + ", priceCategory: " + priceCategoryId));
-        return ResponseEntity.ok(mapToResponse(stock));
+        TicketStockRes stock = ticketStockService.getStockByEventAndPriceCategory(eventId, priceCategoryId)
+                .orElseThrow(() -> new RuntimeException("Stock not found for event: " + eventId
+                + ", priceCategory: " + priceCategoryId));
+        return ResponseEntity.ok(stock);
     }
-
 
     @PatchMapping("/{id}/lock")
     public ResponseEntity<Boolean> lockTickets(
@@ -71,7 +65,6 @@ public class TicketStockController {
         return ResponseEntity.ok(success);
     }
 
-
     @PatchMapping("/{id}/confirm-sale")
     public ResponseEntity<Boolean> confirmSale(
             @PathVariable String id,
@@ -81,29 +74,9 @@ public class TicketStockController {
         return ResponseEntity.ok(success);
     }
 
-
     @GetMapping("/{id}/redis-locked-count")
     public ResponseEntity<Integer> getRedisLockedCount(@PathVariable String id) {
         int count = ticketStockService.getRedisLockedCount(id);
         return ResponseEntity.ok(count);
     }
-
-    private TicketStockRes mapToResponse(TicketStock stock) {
-        return new TicketStockRes(
-                stock.getId(),
-                stock.getEventId(),
-                stock.getVenueId(),
-                stock.getSectionId(),
-                stock.getPriceCategoryId(),
-                stock.getPrice(),
-                stock.getCurrency(),
-                stock.getTotalCount(),
-                stock.getAvailableCount(),
-                stock.getSoldCount(),
-                stock.getLockedCount(),
-                stock.getCreatedAt(),
-                stock.getUpdatedAt()
-        );
-    }
 }
-

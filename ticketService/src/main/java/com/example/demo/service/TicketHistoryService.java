@@ -1,6 +1,6 @@
 package com.example.demo.service;
 
-import com.example.demo.Enums.TicketStatus;
+import com.example.demo.enums.TicketStatus;
 import com.example.demo.dto.TicketHistoryRes;
 import com.example.demo.model.Ticket;
 

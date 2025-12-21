@@ -1,16 +1,19 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.consumer.EventCreatedConsumer.PriceCategoryDetail;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.demo.dto.PriceCategoryDetail;
+import com.example.demo.dto.TicketStockRes;
 import com.example.demo.model.TicketStock;
 import com.example.demo.repository.TicketStockRepository;
 import com.example.demo.service.SeatLockService;
 import com.example.demo.service.TicketStockService;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TicketStockServiceImpl implements TicketStockService {
@@ -27,11 +30,6 @@ public class TicketStockServiceImpl implements TicketStockService {
     @Override
     @Transactional
     public void createTicketStockForEvent(String eventId, String venueId, List<PriceCategoryDetail> priceCategories) {
-        if (priceCategories == null || priceCategories.isEmpty()) {
-            System.out.println("No price categories found for event: " + eventId + ", skipping stock creation");
-            return;
-        }
-
         List<TicketStock> stocksToCreate = new ArrayList<>();
 
         for (PriceCategoryDetail pc : priceCategories) {
@@ -55,48 +53,45 @@ public class TicketStockServiceImpl implements TicketStockService {
 
             stocksToCreate.add(stock);
         }
-
         if (!stocksToCreate.isEmpty()) {
             ticketStockRepository.saveAll(stocksToCreate);
-            int totalCapacity = stocksToCreate.stream().mapToInt(TicketStock::getTotalCount).sum();
-            System.out.println("Created " + stocksToCreate.size() + " stock records for event: " + eventId
-                    + " (Total capacity: " + totalCapacity + " tickets)");
         }
     }
 
     @Override
-    public Optional<TicketStock> getStockById(String stockId) {
-        return ticketStockRepository.findById(stockId);
+    public Optional<TicketStockRes> getStockById(String stockId) {
+        return ticketStockRepository.findById(stockId)
+                .map(this::mapToResponse);
     }
 
     @Override
-    public List<TicketStock> getStocksByEventId(String eventId) {
-        return ticketStockRepository.findByEventId(eventId);
+    public List<TicketStockRes> getStocksByEventId(String eventId) {
+        return ticketStockRepository.findByEventId(eventId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public Optional<TicketStock> getStockByEventAndPriceCategory(String eventId, String priceCategoryId) {
-        return ticketStockRepository.findByEventIdAndPriceCategoryId(eventId, priceCategoryId);
+    public Optional<TicketStockRes> getStockByEventAndPriceCategory(String eventId, String priceCategoryId) {
+        return ticketStockRepository.findByEventIdAndPriceCategoryId(eventId, priceCategoryId)
+                .map(this::mapToResponse);
     }
 
     @Override
     @Transactional
     public boolean lockTickets(String stockId, int count, String orderId, List<String> seatLabels) {
-        // 1. DB'den stok bilgisini al (pessimistic lock ile)
         Optional<TicketStock> stockOpt = ticketStockRepository.findByIdWithLock(stockId);
         if (stockOpt.isEmpty()) {
             System.err.println("Stock not found: " + stockId);
             return false;
         }
-
         TicketStock stock = stockOpt.get();
-
         if (stock.getAvailableCount() < count) {
             System.err.println("Not enough available tickets. Requested: " + count
                     + ", Available: " + stock.getAvailableCount());
             return false;
         }
-
         boolean redisLocked;
         if (seatLabels != null && !seatLabels.isEmpty()) {
             List<String> lockedSeats = seatLockService.lockSeats(stockId, seatLabels, orderId);
@@ -155,7 +150,6 @@ public class TicketStockServiceImpl implements TicketStockService {
             System.err.println("Stock not found: " + stockId);
             return false;
         }
-
         TicketStock stock = stockOpt.get();
 
         seatLockService.unlockGenericSeats(stockId, count, orderId);
@@ -176,8 +170,56 @@ public class TicketStockServiceImpl implements TicketStockService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<TicketStock> getStockEntityByIdWithLock(String stockId) {
+        return ticketStockRepository.findByIdWithLock(stockId);
+    }
+
+    @Override
     @Transactional
-    public TicketStock save(TicketStock stock) {
-        return ticketStockRepository.save(stock);
+    public void decrementAvailableAndIncrementSold(String stockId, int quantity) {
+        Optional<TicketStock> stockOpt = ticketStockRepository.findByIdWithLock(stockId);
+        if (stockOpt.isEmpty()) {
+            throw new RuntimeException("Stock not found: " + stockId);
+        }
+        TicketStock stock = stockOpt.get();
+        if (stock.getAvailableCount() < quantity) {
+            throw new RuntimeException("Not enough tickets available. Requested: " + quantity
+                    + ", Available: " + stock.getAvailableCount());
+        }
+        stock.setAvailableCount(stock.getAvailableCount() - quantity);
+        stock.setSoldCount(stock.getSoldCount() + quantity);
+        ticketStockRepository.save(stock);
+    }
+
+    @Override
+    @Transactional
+    public void incrementAvailableAndDecrementSold(String eventId, String priceCategoryId) {
+        Optional<TicketStock> stockOpt = ticketStockRepository.findByEventIdAndPriceCategoryIdWithLock(
+                eventId, priceCategoryId);
+        if (stockOpt.isPresent()) {
+            TicketStock stock = stockOpt.get();
+            stock.setAvailableCount(stock.getAvailableCount() + 1);
+            stock.setSoldCount(stock.getSoldCount() - 1);
+            ticketStockRepository.save(stock);
+        }
+    }
+
+    private TicketStockRes mapToResponse(TicketStock stock) {
+        return new TicketStockRes(
+                stock.getId(),
+                stock.getEventId(),
+                stock.getVenueId(),
+                stock.getSectionId(),
+                stock.getPriceCategoryId(),
+                stock.getPrice(),
+                stock.getCurrency(),
+                stock.getTotalCount(),
+                stock.getAvailableCount(),
+                stock.getSoldCount(),
+                stock.getLockedCount(),
+                stock.getCreatedAt(),
+                stock.getUpdatedAt()
+        );
     }
 }

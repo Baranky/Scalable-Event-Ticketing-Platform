@@ -9,8 +9,7 @@ public record VenueRes(
         String address,
         int capacity,
         double latitude,
-        double longitude,
-        List<String> sectionIds
-        ) {
+        double longitude
+) {
 
 }
