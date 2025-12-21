@@ -68,7 +68,6 @@ public class OrderOutbox {
         return !processed && retryCount >= MAX_RETRY_COUNT;
     }
 
-    // --- Getters & Setters ---
 
     public String getId() {
         return id;

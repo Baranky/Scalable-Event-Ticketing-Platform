@@ -13,9 +13,5 @@ import java.util.Optional;
 public interface OrderSagaRepository extends JpaRepository<OrderSaga, String> {
     
     Optional<OrderSaga> findByOrderId(String orderId);
-    
-    List<OrderSaga> findByStatus(SagaStatus status);
-
-    List<OrderSaga> findByStatusAndUpdatedAtBefore(SagaStatus status, LocalDateTime threshold);
 }
 

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
+import com.example.demo.dto.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -13,11 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import com.example.demo.client.PaymentClient;
 import com.example.demo.client.TicketClient;
-import com.example.demo.dto.OrderCreateRequest;
-import com.example.demo.dto.OrderItemDto;
-import com.example.demo.dto.OrderResponse;
-import com.example.demo.dto.OrderSagaRequest;
-import com.example.demo.dto.SagaStatusResponse;
 import com.example.demo.enums.OrderStatus;
 import com.example.demo.model.Order;
 import com.example.demo.model.OrderItem;
@@ -73,7 +69,7 @@ public class OrderServiceImpl implements OrderService {
             return toResponse(existing, orderItemRepository.findByOrder_Id(existing.getId()));
         }
 
-        TicketClient.TicketStockResponse stock;
+        TicketStockResponse stock;
         try {
             stock = ticketClient.getStockById(request.stockId());
             log.info("Stock found for stockId={}, price={}, availableCount={}",
@@ -143,8 +139,8 @@ public class OrderServiceImpl implements OrderService {
                 .map(OrderItem::getSeatLabel)
                 .collect(Collectors.toList());
 
-        List<TicketClient.TicketResponse> tickets = ticketClient.purchaseTickets(
-                new TicketClient.TicketPurchaseRequest(
+        List<TicketResponse> tickets = ticketClient.purchaseTickets(
+                new TicketPurchaseRequest(
                         order.getUserId(),
                         order.getStockId(),
                         order.getQuantity(),
@@ -155,7 +151,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> items = orderItemRepository.findByOrder_Id(orderId);
         for (int i = 0; i < items.size() && i < tickets.size(); i++) {
             OrderItem item = items.get(i);
-            TicketClient.TicketResponse ticket = tickets.get(i);
+            TicketResponse ticket = tickets.get(i);
             item.setTicketId(ticket.id());
             item.setQrCode(ticket.qrCode());
             item.setEventId(ticket.eventId());

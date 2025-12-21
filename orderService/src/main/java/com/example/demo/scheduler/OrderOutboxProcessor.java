@@ -14,23 +14,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Transactional Outbox Pattern - Order Outbox Processor
- * 
- * Bu scheduler, order_outbox tablosundan işlenmemiş kayıtları okuyup
- * Kafka'ya gönderir.
- * 
- * İşlenen Event Tipleri:
- * - ORDER_CREATED: Sipariş oluşturuldu
- * - ORDER_COMPLETED: Sipariş tamamlandı (ödeme başarılı)
- * - ORDER_CANCELLED: Sipariş iptal edildi
- * - ORDER_PAYMENT_FAILED: Ödeme başarısız
- * 
- * Dinleyenler:
- * - Notification Service → Email/SMS gönderimi
- * - Analytics Service → Raporlama
- * - Inventory Service → Stok güncelleme
- */
 @Component
 public class OrderOutboxProcessor {
 
@@ -47,9 +30,6 @@ public class OrderOutboxProcessor {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    /**
-     * Her 5 saniyede bir outbox tablosunu kontrol et
-     */
     @Scheduled(fixedDelay = 5000)
     @Transactional
     public void processOutbox() {
@@ -83,13 +63,11 @@ public class OrderOutboxProcessor {
         log.info("Order outbox processing finished: success={}, failed={}", successCount, failCount);
     }
 
-    /**
-     * Kafka'ya mesaj gönder (senkron - sonucu bekle)
-     */
+
     private void publishToKafka(OrderOutbox outbox) throws Exception {
         CompletableFuture<?> future = kafkaTemplate.send(
                 outbox.getTopic(),
-                outbox.getAggregateId(), // Kafka partition key
+                outbox.getAggregateId(),
                 outbox.getPayload()
         );
 
@@ -100,9 +78,7 @@ public class OrderOutboxProcessor {
         }
     }
 
-    /**
-     * Dead Letter kayıtlarını raporla (her 1 dakikada)
-     */
+
     @Scheduled(fixedDelay = 60000)
     public void reportDeadLetters() {
         long deadLetterCount = outboxRepository.countDeadLetters();
@@ -117,9 +93,6 @@ public class OrderOutboxProcessor {
         }
     }
 
-    /**
-     * Eski işlenmiş kayıtları temizle (her gece yarısı)
-     */
     @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void cleanupProcessedEvents() {
@@ -130,9 +103,7 @@ public class OrderOutboxProcessor {
         }
     }
 
-    /**
-     * Outbox istatistiklerini getir
-     */
+
     public OutboxStats getStats() {
         return new OutboxStats(
                 outboxRepository.countByProcessedFalse(),

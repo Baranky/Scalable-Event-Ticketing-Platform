@@ -32,8 +32,6 @@ public class SeatLockServiceImpl implements SeatLockService {
             local totalKey = KEYS[2]
             local orderId = ARGV[1]
             local ttl = tonumber(ARGV[2])
-            
-            -- Mevcut kilidi kontrol et
             local currentOwner = redis.call('GET', lockKey)
             
             if currentOwner == false then
@@ -331,7 +329,6 @@ public class SeatLockServiceImpl implements SeatLockService {
     @Override
     public int getLockedCountForOrder(String stockId, String orderId) {
         try {
-            // Generic lock
             String genericKey = GENERIC_LOCK_PREFIX + stockId + ":" + orderId;
             Object genericCount = redisTemplate.opsForValue().get(genericKey);
 

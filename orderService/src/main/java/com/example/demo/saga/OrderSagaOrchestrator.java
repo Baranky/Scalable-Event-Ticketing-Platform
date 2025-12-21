@@ -1,21 +1,8 @@
 package com.example.demo.saga;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.example.demo.client.PaymentClient;
 import com.example.demo.client.TicketClient;
-import com.example.demo.dto.OrderItemDto;
-import com.example.demo.dto.OrderResponse;
-import com.example.demo.dto.OrderSagaRequest;
+import com.example.demo.dto.*;
 import com.example.demo.enums.OrderStatus;
 import com.example.demo.model.Order;
 import com.example.demo.model.OrderItem;
@@ -27,6 +14,16 @@ import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.OrderSagaRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class OrderSagaOrchestrator {
@@ -55,8 +52,7 @@ public class OrderSagaOrchestrator {
         this.sagaRepository = sagaRepository;
         this.ticketClient = ticketClient;
         this.paymentClient = paymentClient;
-        this.objectMapper = objectMapper;
-    }
+        this.objectMapper = objectMapper;}
 
     @Transactional
     public OrderResponse executeSaga(OrderSagaRequest request) {
@@ -66,7 +62,7 @@ public class OrderSagaOrchestrator {
             return toResponse(existingOrder, orderItemRepository.findByOrder_Id(existingOrder.getId()));
         }
 
-        TicketClient.TicketStockResponse stock;
+        TicketStockResponse stock;
         try {
             stock = ticketClient.getStockById(request.stockId());
             log.info("Stock found for stockId={}, price={}, currency={}, availableCount={}",
@@ -107,9 +103,9 @@ public class OrderSagaOrchestrator {
             order.setStatus(OrderStatus.PAYMENT_PROCESSING);
             orderRepository.save(order);
 
-            PaymentClient.PaymentResponse paymentResponse;
+            PaymentResponse paymentResponse;
             try {
-                paymentResponse = paymentClient.createPayment(new PaymentClient.PaymentRequest(
+                paymentResponse = paymentClient.createPayment(new PaymentRequest(
                         order.getId(),
                         order.getUserId(),
                         order.getTotalAmount(),
@@ -154,8 +150,8 @@ public class OrderSagaOrchestrator {
                     .map(OrderItem::getSeatLabel)
                     .collect(Collectors.toList());
 
-            List<TicketClient.TicketResponse> tickets = ticketClient.purchaseTickets(
-                    new TicketClient.TicketPurchaseRequest(
+            List<TicketResponse> tickets = ticketClient.purchaseTickets(
+                    new TicketPurchaseRequest(
                             order.getUserId(),
                             order.getStockId(),
                             order.getQuantity(),
@@ -165,7 +161,7 @@ public class OrderSagaOrchestrator {
 
             for (int i = 0; i < items.size() && i < tickets.size(); i++) {
                 OrderItem item = items.get(i);
-                TicketClient.TicketResponse ticket = tickets.get(i);
+                TicketResponse ticket = tickets.get(i);
                 item.setTicketId(ticket.id());
                 item.setQrCode(ticket.qrCode());
                 item.setEventId(ticket.eventId());
@@ -266,7 +262,7 @@ public class OrderSagaOrchestrator {
         orderRepository.save(order);
     }
 
-    private Order createPendingOrder(OrderSagaRequest request, TicketClient.TicketStockResponse stock) {
+    private Order createPendingOrder(OrderSagaRequest request, TicketStockResponse stock) {
         Order order = new Order();
         order.setUserId(request.userId());
         order.setStatus(OrderStatus.PENDING);
@@ -281,7 +277,7 @@ public class OrderSagaOrchestrator {
         return orderRepository.save(order);
     }
 
-    private List<OrderItem> createOrderItems(Order order, OrderSagaRequest request, TicketClient.TicketStockResponse stock) {
+    private List<OrderItem> createOrderItems(Order order, OrderSagaRequest request, TicketStockResponse stock) {
         List<OrderItem> items = new ArrayList<>();
         List<String> seatLabels = request.seatLabels();
 

@@ -1,10 +1,11 @@
 package com.example.demo.client;
 
+import com.example.demo.dto.TicketPurchaseRequest;
+import com.example.demo.dto.TicketResponse;
+import com.example.demo.dto.TicketStockResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -63,41 +64,4 @@ public interface TicketClient {
     TicketResponse refundTicket(@PathVariable("id") String ticketId,
                                  @RequestParam("refundedBy") String refundedBy,
                                  @RequestParam(value = "reason", required = false) String reason);
-
-
-    record TicketStockResponse(
-            String id,
-            String eventId,
-            String venueId,
-            String sectionId,
-            String priceCategoryId,
-            BigDecimal price,
-            String currency,
-            int totalCount,
-            int availableCount,
-            int soldCount,
-            int lockedCount
-    ) {}
-
-    record TicketPurchaseRequest(
-            String userId,
-            String stockId,
-            int quantity,
-            List<String> seatLabels
-    ) {}
-
-    record TicketResponse(
-            String id,
-            String eventId,
-            String venueId,
-            String userId,
-            String sectionId,
-            String seatLabel,
-            String priceCategoryId,
-            String status,
-            BigDecimal purchasePrice,
-            String currency,
-            String qrCode,
-            LocalDateTime purchasedAt
-    ) {}
 }
