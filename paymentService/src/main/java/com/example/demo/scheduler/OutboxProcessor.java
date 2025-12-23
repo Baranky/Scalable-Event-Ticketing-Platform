@@ -1,6 +1,6 @@
 package com.example.demo.scheduler;
 
-import com.example.demo.model.PaymentOutbox;
+import com.example.demo.entity.PaymentOutbox;
 import com.example.demo.repository.PaymentOutboxRepository;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;

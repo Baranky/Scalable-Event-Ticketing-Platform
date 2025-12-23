@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.example.demo.enums.NotificationStatus;
-import com.example.demo.model.Notification;
+import com.example.demo.entity.Notification;
 
 public interface NotificationRepository extends JpaRepository<Notification, String> {
 

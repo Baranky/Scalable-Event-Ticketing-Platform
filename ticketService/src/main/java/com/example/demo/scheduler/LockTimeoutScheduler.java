@@ -1,6 +1,6 @@
 package com.example.demo.scheduler;
 
-import com.example.demo.model.TicketStock;
+import com.example.demo.entity.TicketStock;
 import com.example.demo.repository.TicketStockRepository;
 import com.example.demo.service.SeatLockService;
 import org.springframework.scheduling.annotation.Scheduled;

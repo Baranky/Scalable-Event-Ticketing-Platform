@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.dto.PriceCategoryDetail;
 import com.example.demo.dto.TicketStockRes;
-import com.example.demo.model.TicketStock;
+import com.example.demo.entity.TicketStock;
 import com.example.demo.repository.TicketStockRepository;
 import com.example.demo.service.SeatLockService;
 import com.example.demo.service.TicketStockService;

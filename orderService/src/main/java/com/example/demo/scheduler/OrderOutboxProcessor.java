@@ -1,6 +1,6 @@
 package com.example.demo.scheduler;
 
-import com.example.demo.model.OrderOutbox;
+import com.example.demo.entity.OrderOutbox;
 import com.example.demo.repository.OrderOutboxRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

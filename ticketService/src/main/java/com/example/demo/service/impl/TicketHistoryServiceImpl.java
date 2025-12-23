@@ -2,8 +2,8 @@ package com.example.demo.service.impl;
 
 import com.example.demo.enums.TicketStatus;
 import com.example.demo.dto.TicketHistoryRes;
-import com.example.demo.model.Ticket;
-import com.example.demo.model.TicketHistory;
+import com.example.demo.entity.Ticket;
+import com.example.demo.entity.TicketHistory;
 import com.example.demo.repository.TicketHistoryRepository;
 import com.example.demo.service.TicketHistoryService;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package com.example.demo.model;
+package com.example.demo.entity;
 
 import com.example.demo.saga.SagaStatus;
 import com.example.demo.saga.SagaStep;

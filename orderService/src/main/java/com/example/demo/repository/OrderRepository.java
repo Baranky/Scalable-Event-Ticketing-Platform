@@ -1,6 +1,6 @@
 package com.example.demo.repository;
 
-import com.example.demo.model.Order;
+import com.example.demo.entity.Order;
 import com.example.demo.enums.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 

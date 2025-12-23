@@ -51,7 +51,6 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Nacos Discovery for Service Discovery -->
 		<dependency>
 			<groupId>com.alibaba.cloud</groupId>
 			<artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -72,7 +71,6 @@
 			<version>4.3.0</version>
 		</dependency>
 
-		<!-- Micrometer Tracing for Zipkin -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-tracing-bridge-brave</artifactId>
@@ -91,7 +89,6 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-			<!-- Spring Cloud Alibaba BOM for Nacos -->
 			<dependency>
 				<groupId>com.alibaba.cloud</groupId>
 				<artifactId>spring-cloud-alibaba-dependencies</artifactId>

@@ -1,12 +1,8 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.model.TicketStock;
-import com.example.demo.repository.TicketStockRepository;
 import com.example.demo.service.PaymentEventHandlerService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 
 @Service

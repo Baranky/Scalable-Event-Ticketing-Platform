@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import com.example.demo.dto.PriceCategoryDetail;
 import com.example.demo.dto.TicketStockRes;
-import com.example.demo.model.TicketStock;
+import com.example.demo.entity.TicketStock;
 
 public interface TicketStockService {
 

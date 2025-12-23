@@ -1,17 +1,16 @@
-package com.example.demo.model;
+package com.example.demo.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-
 @Entity
-@Table(name = "order_outbox", indexes = {
-        @Index(name = "idx_order_outbox_processed", columnList = "processed"),
-        @Index(name = "idx_order_outbox_created_at", columnList = "createdAt")
+@Table(name = "payment_outbox", indexes = {
+        @Index(name = "idx_outbox_processed", columnList = "processed"),
+        @Index(name = "idx_outbox_created_at", columnList = "createdAt")
 })
-public class OrderOutbox {
+public class PaymentOutbox {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -28,7 +27,6 @@ public class OrderOutbox {
 
     @Column(nullable = false)
     private String topic;
-
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String payload;
@@ -159,7 +157,7 @@ public class OrderOutbox {
 
     @Override
     public String toString() {
-        return "OrderOutbox{" +
+        return "PaymentOutbox{" +
                 "id='" + id + '\'' +
                 ", aggregateType='" + aggregateType + '\'' +
                 ", aggregateId='" + aggregateId + '\'' +

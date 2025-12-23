@@ -1,7 +1,7 @@
 package com.example.demo.service;
 
-import com.example.demo.model.Order;
-import com.example.demo.model.OrderOutbox;
+import com.example.demo.entity.Order;
+import com.example.demo.entity.OrderOutbox;
 import com.example.demo.repository.OrderOutboxRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

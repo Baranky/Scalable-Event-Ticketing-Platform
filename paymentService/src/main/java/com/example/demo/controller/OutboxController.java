@@ -1,6 +1,6 @@
 package com.example.demo.controller;
 
-import com.example.demo.model.PaymentOutbox;
+import com.example.demo.entity.PaymentOutbox;
 import com.example.demo.repository.PaymentOutboxRepository;
 import com.example.demo.scheduler.OutboxProcessor;
 import org.springframework.http.ResponseEntity;

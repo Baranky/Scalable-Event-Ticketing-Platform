@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.SendNotificationRequest;
-import com.example.demo.model.Notification;
+import com.example.demo.entity.Notification;
 import com.example.demo.service.NotificationService;
 
 @RestController
