@@ -1,29 +1,37 @@
 package com.example.demo.saga;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.demo.client.PaymentClient;
 import com.example.demo.client.TicketClient;
-import com.example.demo.dto.*;
-import com.example.demo.enums.OrderStatus;
+import com.example.demo.dto.OrderItemDto;
+import com.example.demo.dto.OrderResponse;
+import com.example.demo.dto.OrderSagaRequest;
+import com.example.demo.dto.PaymentRequest;
+import com.example.demo.dto.PaymentResponse;
+import com.example.demo.dto.TicketPurchaseRequest;
+import com.example.demo.dto.TicketResponse;
+import com.example.demo.dto.TicketStockResponse;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.OrderOutbox;
 import com.example.demo.entity.OrderSaga;
+import com.example.demo.enums.OrderStatus;
 import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.OrderOutboxRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.OrderSagaRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class OrderSagaOrchestrator {
@@ -52,7 +60,8 @@ public class OrderSagaOrchestrator {
         this.sagaRepository = sagaRepository;
         this.ticketClient = ticketClient;
         this.paymentClient = paymentClient;
-        this.objectMapper = objectMapper;}
+        this.objectMapper = objectMapper;
+    }
 
     @Transactional
     public OrderResponse executeSaga(OrderSagaRequest request) {
@@ -62,143 +71,160 @@ public class OrderSagaOrchestrator {
             return toResponse(existingOrder, orderItemRepository.findByOrder_Id(existingOrder.getId()));
         }
 
-        TicketStockResponse stock;
-        try {
-            stock = ticketClient.getStockById(request.stockId());
-            log.info("Stock found for stockId={}, price={}, currency={}, availableCount={}",
-                    stock.id(), stock.price(), stock.currency(), stock.availableCount());
-        } catch (Exception e) {
-            throw new SagaException("Stok bulunamadı: " + request.stockId(), null);
-        }
-
-        if (stock.availableCount() < request.quantity()) {
-            throw new SagaException("Yetersiz stok. İstenen: " + request.quantity()
-                    + ", Mevcut: " + stock.availableCount(), null);
-        }
-
+        TicketStockResponse stock = loadAndValidateStockForSaga(request);
         Order order = createPendingOrder(request, stock);
         List<OrderItem> items = createOrderItems(order, request, stock);
-
         OrderSaga saga = createSaga(order.getId());
-
         List<SagaStep> completedSteps = new ArrayList<>();
 
         try {
-            updateSagaStep(saga, SagaStep.LOCK_TICKETS);
-
-            boolean locked = ticketClient.lockTickets(
-                    request.stockId(),
-                    request.quantity(),
-                    order.getId(),
-                    request.seatLabels()
-            );
-
-            if (!locked) {
-                throw new SagaException("Biletler kilitlenemedi", SagaStep.LOCK_TICKETS);
-            }
-
-            completedSteps.add(SagaStep.LOCK_TICKETS);
-
-            updateSagaStep(saga, SagaStep.PROCESS_PAYMENT);
-            order.setStatus(OrderStatus.PAYMENT_PROCESSING);
-            orderRepository.save(order);
-
-            PaymentResponse paymentResponse;
-            try {
-                paymentResponse = paymentClient.createPayment(new PaymentRequest(
-                        order.getId(),
-                        order.getUserId(),
-                        order.getTotalAmount(),
-                        order.getCurrency(),
-                        request.paymentMethod(),
-                        request.cardNumber(),
-                        request.cvv(),
-                        request.expireDate(),
-                        request.cardHolderName()
-                ));
-
-                if (!"SUCCESS".equals(paymentResponse.status())) {
-                    throw new SagaException("Ödeme başarısız: " + paymentResponse.status(), SagaStep.PROCESS_PAYMENT);
-                }
-            } catch (SagaException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new SagaException("Ödeme işlenirken hata: " + e.getMessage(), SagaStep.PROCESS_PAYMENT);
-            }
-
-            completedSteps.add(SagaStep.PROCESS_PAYMENT);
-
-            updateSagaStep(saga, SagaStep.CONFIRM_SALE);
-            order.setStatus(OrderStatus.PAID);
-            orderRepository.save(order);
-
-            boolean confirmed = ticketClient.confirmSale(
-                    request.stockId(),
-                    request.quantity(),
-                    order.getId()
-            );
-
-            if (!confirmed) {
-                throw new SagaException("Satış onaylanamadı", SagaStep.CONFIRM_SALE);
-            }
-
-            completedSteps.add(SagaStep.CONFIRM_SALE);
-
-            updateSagaStep(saga, SagaStep.CREATE_TICKETS);
-
-            List<String> seatLabels = items.stream()
-                    .map(OrderItem::getSeatLabel)
-                    .collect(Collectors.toList());
-
-            List<TicketResponse> tickets = ticketClient.purchaseTickets(
-                    new TicketPurchaseRequest(
-                            order.getUserId(),
-                            order.getStockId(),
-                            order.getQuantity(),
-                            seatLabels
-                    )
-            );
-
-            for (int i = 0; i < items.size() && i < tickets.size(); i++) {
-                OrderItem item = items.get(i);
-                TicketResponse ticket = tickets.get(i);
-                item.setTicketId(ticket.id());
-                item.setQrCode(ticket.qrCode());
-                item.setEventId(ticket.eventId());
-                item.setSeatLabel(ticket.seatLabel());
-            }
-            orderItemRepository.saveAll(items);
-
-            completedSteps.add(SagaStep.CREATE_TICKETS);
-            log.info("{} tickets created for orderId={}", tickets.size(), order.getId());
-
-            updateSagaStep(saga, SagaStep.COMPLETE_ORDER);
-            log.info("Step COMPLETE_ORDER started for orderId={}", order.getId());
-
-            order.setStatus(OrderStatus.COMPLETED);
-            orderRepository.save(order);
-
-            createOutboxEvent(order, "ORDER_COMPLETED");
-
-            completedSteps.add(SagaStep.COMPLETE_ORDER);
-            log.info("Order completed successfully, orderId={}", order.getId());
-
-            saga.setStatus(SagaStatus.COMPLETED);
-            saga.setCompletedSteps(stepsToJson(completedSteps));
-            saga.setCompletedAt(LocalDateTime.now());
-            sagaRepository.save(saga);
-
-            return toResponse(order, items);
-
+            lockTicketsStep(request, order, saga, completedSteps);
+            processPaymentStep(request, order, saga, completedSteps);
+            confirmSaleStep(request, order, saga, completedSteps);
+            int ticketCount = createTicketsStep(order, items, saga, completedSteps);
+            return completeOrderStep(order, items, saga, completedSteps, ticketCount);
         } catch (SagaException e) {
             log.error("Saga failed for orderId={}, failedStep={}, message={}",
                     order.getId(), e.getFailedStep(), e.getMessage());
             log.info("Starting compensation for orderId={}", order.getId());
-
             compensate(order, saga, completedSteps, e);
-
             throw e;
         }
+    }
+
+    private TicketStockResponse loadAndValidateStockForSaga(OrderSagaRequest request) {
+        try {
+            TicketStockResponse stock = ticketClient.getStockById(request.stockId());
+            log.info("Stock found for stockId={}, price={}, currency={}, availableCount={}",
+                    stock.id(), stock.price(), stock.currency(), stock.availableCount());
+
+            if (stock.availableCount() < request.quantity()) {
+                throw new SagaException("Yetersiz stok. İstenen: " + request.quantity()
+                        + ", Mevcut: " + stock.availableCount(), null);
+            }
+            return stock;
+        } catch (SagaException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SagaException("Stok bulunamadı: " + request.stockId(), null);
+        }
+    }
+
+    private void lockTicketsStep(OrderSagaRequest request, Order order, OrderSaga saga, List<SagaStep> completedSteps) {
+        updateSagaStep(saga, SagaStep.LOCK_TICKETS);
+
+        boolean locked = ticketClient.lockTickets(
+                request.stockId(),
+                request.quantity(),
+                order.getId(),
+                request.seatLabels()
+        );
+
+        if (!locked) {
+            throw new SagaException("Biletler kilitlenemedi", SagaStep.LOCK_TICKETS);
+        }
+
+        completedSteps.add(SagaStep.LOCK_TICKETS);
+    }
+
+    private void processPaymentStep(OrderSagaRequest request, Order order, OrderSaga saga, List<SagaStep> completedSteps) {
+        updateSagaStep(saga, SagaStep.PROCESS_PAYMENT);
+        order.setStatus(OrderStatus.PAYMENT_PROCESSING);
+        orderRepository.save(order);
+
+        try {
+            PaymentResponse paymentResponse = paymentClient.createPayment(new PaymentRequest(
+                    order.getId(),
+                    order.getUserId(),
+                    order.getTotalAmount(),
+                    order.getCurrency(),
+                    request.paymentMethod(),
+                    request.cardNumber(),
+                    request.cvv(),
+                    request.expireDate(),
+                    request.cardHolderName()
+            ));
+
+            if (!"SUCCESS".equals(paymentResponse.status())) {
+                throw new SagaException("Ödeme başarısız: " + paymentResponse.status(), SagaStep.PROCESS_PAYMENT);
+            }
+        } catch (SagaException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SagaException("Ödeme işlenirken hata: " + e.getMessage(), SagaStep.PROCESS_PAYMENT);
+        }
+
+        completedSteps.add(SagaStep.PROCESS_PAYMENT);
+    }
+
+    private void confirmSaleStep(OrderSagaRequest request, Order order, OrderSaga saga, List<SagaStep> completedSteps) {
+        updateSagaStep(saga, SagaStep.CONFIRM_SALE);
+        order.setStatus(OrderStatus.PAID);
+        orderRepository.save(order);
+
+        boolean confirmed = ticketClient.confirmSale(
+                request.stockId(),
+                request.quantity(),
+                order.getId()
+        );
+
+        if (!confirmed) {
+            throw new SagaException("Satış onaylanamadı", SagaStep.CONFIRM_SALE);
+        }
+
+        completedSteps.add(SagaStep.CONFIRM_SALE);
+    }
+
+    private int createTicketsStep(Order order, List<OrderItem> items, OrderSaga saga, List<SagaStep> completedSteps) {
+        updateSagaStep(saga, SagaStep.CREATE_TICKETS);
+
+        List<String> seatLabels = items.stream()
+                .map(OrderItem::getSeatLabel)
+                .collect(Collectors.toList());
+
+        List<TicketResponse> tickets = ticketClient.purchaseTickets(
+                new TicketPurchaseRequest(
+                        order.getUserId(),
+                        order.getStockId(),
+                        order.getQuantity(),
+                        seatLabels
+                )
+        );
+
+        for (int i = 0; i < items.size() && i < tickets.size(); i++) {
+            OrderItem item = items.get(i);
+            TicketResponse ticket = tickets.get(i);
+            item.setTicketId(ticket.id());
+            item.setQrCode(ticket.qrCode());
+            item.setEventId(ticket.eventId());
+            item.setSeatLabel(ticket.seatLabel());
+        }
+        orderItemRepository.saveAll(items);
+
+        completedSteps.add(SagaStep.CREATE_TICKETS);
+        log.info("{} tickets created for orderId={}", tickets.size(), order.getId());
+        return tickets.size();
+    }
+
+    private OrderResponse completeOrderStep(Order order, List<OrderItem> items, OrderSaga saga,
+            List<SagaStep> completedSteps, int ticketCount) {
+        updateSagaStep(saga, SagaStep.COMPLETE_ORDER);
+        log.info("Step COMPLETE_ORDER started for orderId={}", order.getId());
+
+        order.setStatus(OrderStatus.COMPLETED);
+        orderRepository.save(order);
+
+        createOutboxEvent(order, "ORDER_COMPLETED");
+
+        completedSteps.add(SagaStep.COMPLETE_ORDER);
+        log.info("Order completed successfully, orderId={}, ticketCount={}", order.getId(), ticketCount);
+
+        saga.setStatus(SagaStatus.COMPLETED);
+        saga.setCompletedSteps(stepsToJson(completedSteps));
+        saga.setCompletedAt(LocalDateTime.now());
+        sagaRepository.save(saga);
+
+        return toResponse(order, items);
     }
 
     private void compensate(Order order, OrderSaga saga, List<SagaStep> completedSteps, SagaException error) {
@@ -209,7 +235,8 @@ public class OrderSagaOrchestrator {
 
         for (int i = completedSteps.size() - 1; i >= 0; i--) {
             SagaStep step = completedSteps.get(i);
-            System.out.println("\n🔙 Compensating: " + step.getDescription() + " → " + step.getCompensationDescription());
+            log.info("Compensating step={} desc='{}' compensation='{}'",
+                    step, step.getDescription(), step.getCompensationDescription());
 
             try {
                 switch (step) {
@@ -225,6 +252,7 @@ public class OrderSagaOrchestrator {
                         compensateCompleteOrder(order);
                 }
             } catch (Exception ce) {
+                log.error("Compensation step {} failed for orderId={}, error={}", step, order.getId(), ce.getMessage(), ce);
             }
         }
 
@@ -239,9 +267,9 @@ public class OrderSagaOrchestrator {
     }
 
     private void compensateLockTickets(Order order) {
-        // Bilet kilidini aç
         ticketClient.unlockTickets(order.getStockId(), order.getQuantity(), order.getId());
-        System.out.println("   🔓 Bilet kilidi açıldı: " + order.getQuantity() + " adet");
+        log.info("Seat locks released during compensation for orderId={}, quantity={}",
+                order.getId(), order.getQuantity());
     }
 
     private void compensatePayment(Order order) {

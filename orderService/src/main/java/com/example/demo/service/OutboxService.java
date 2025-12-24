@@ -79,22 +79,6 @@ public class OutboxService {
     }
 
 
-    public void saveOrderPaymentFailedEvent(Order order, String failureReason) {
-        OrderOutbox outbox = createOutbox(order.getId(), "ORDER_PAYMENT_FAILED");
-        
-        outbox.setPayload(toJson(Map.of(
-                "eventType", "ORDER_PAYMENT_FAILED",
-                "orderId", order.getId(),
-                "userId", order.getUserId(),
-                "reason", failureReason != null ? failureReason : "Payment failed",
-                "stockId", order.getStockId(),
-                "quantity", order.getQuantity()
-        )));
-        
-        outboxRepository.save(outbox);
-        log.info("Outbox ORDER_PAYMENT_FAILED saved for orderId={}", order.getId());
-    }
-
 
     private OrderOutbox createOutbox(String orderId, String eventType) {
         OrderOutbox outbox = new OrderOutbox();

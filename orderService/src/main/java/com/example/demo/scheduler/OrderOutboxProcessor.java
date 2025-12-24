@@ -64,7 +64,7 @@ public class OrderOutboxProcessor {
     }
 
 
-    private void publishToKafka(OrderOutbox outbox) throws Exception {
+    private void publishToKafka(OrderOutbox outbox) {
         CompletableFuture<?> future = kafkaTemplate.send(
                 outbox.getTopic(),
                 outbox.getAggregateId(),
@@ -104,18 +104,5 @@ public class OrderOutboxProcessor {
     }
 
 
-    public OutboxStats getStats() {
-        return new OutboxStats(
-                outboxRepository.countByProcessedFalse(),
-                outboxRepository.countByProcessedTrue(),
-                outboxRepository.countDeadLetters()
-        );
-    }
-
-    public record OutboxStats(
-            long pending,
-            long processed,
-            long deadLetters
-    ) {}
 }
 
