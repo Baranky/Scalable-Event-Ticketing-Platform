@@ -1,19 +1,24 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.exception.LockAcquisitionException;
-import com.example.demo.service.DistributedLockService;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
-import org.springframework.stereotype.Service;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.exception.LockAcquisitionException;
+import com.example.demo.service.DistributedLockService;
+
 @Service
 public class DistributedLockServiceImpl implements DistributedLockService {
+
+    private static final Logger log = LoggerFactory.getLogger(DistributedLockServiceImpl.class);
 
     private static final long DEFAULT_WAIT_TIME = 10;
     private static final long DEFAULT_LEASE_TIME = 30;
@@ -30,14 +35,14 @@ public class DistributedLockServiceImpl implements DistributedLockService {
         try {
             boolean acquired = lock.tryLock(waitTime, leaseTime, timeUnit);
             if (acquired) {
-                System.out.println("Lock acquired: " + lockKey + " by thread: " + Thread.currentThread().getName());
+                log.info("Lock acquired: lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
             } else {
-                System.out.println("Lock not acquired (timeout): " + lockKey);
+                log.warn("Lock not acquired (timeout): lockKey={}", lockKey);
             }
             return acquired;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Lock acquisition interrupted: " + lockKey);
+            log.error("Lock acquisition interrupted: lockKey={}", lockKey, e);
             return false;
         }
     }
@@ -48,13 +53,12 @@ public class DistributedLockServiceImpl implements DistributedLockService {
         try {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                System.out.println("Lock released: " + lockKey + " by thread: " + Thread.currentThread().getName());
+                log.info("Lock released: lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
             } else {
-                System.out.println(" Lock not held by current thread, cannot unlock: " + lockKey);
+                log.warn("Lock not held by current thread, cannot unlock: lockKey={}", lockKey);
             }
         } catch (IllegalMonitorStateException e) {
-            // Kilit zaten serbest bırakılmış veya expire olmuş
-            System.out.println("Lock already released or expired: " + lockKey);
+            log.debug("Lock already released or expired: lockKey={}", lockKey);
         }
     }
 
@@ -68,26 +72,26 @@ public class DistributedLockServiceImpl implements DistributedLockService {
     public <T> T executeWithLock(String lockKey, long waitTime, long leaseTime, TimeUnit timeUnit, Supplier<T> action) {
         RLock lock = redissonClient.getLock(lockKey);
         boolean acquired = false;
-        
+
         try {
             acquired = lock.tryLock(waitTime, leaseTime, timeUnit);
-            
+
             if (!acquired) {
-                throw new LockAcquisitionException(lockKey, 
+                throw new LockAcquisitionException(lockKey,
                         "Could not acquire lock within " + waitTime + " " + timeUnit);
             }
-            
-            System.out.println("[executeWithLock] Lock acquired: " + lockKey);
-            
+
+            log.info("Lock acquired for execution: lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
+
             return action.get();
-            
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new LockAcquisitionException(lockKey, e);
         } finally {
             if (acquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                System.out.println(" [executeWithLock] Lock released: " + lockKey);
+                log.info("Lock released after execution: lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
             }
         }
     }
@@ -110,7 +114,7 @@ public class DistributedLockServiceImpl implements DistributedLockService {
                         "Could not acquire fair lock within " + waitTime + " " + timeUnit);
             }
 
-            System.out.println(" [FairLock] Lock acquired: " + lockKey + " (FIFO order)");
+            log.info("Fair lock acquired (FIFO order): lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
 
             return action.get();
 
@@ -120,7 +124,7 @@ public class DistributedLockServiceImpl implements DistributedLockService {
         } finally {
             if (acquired && fairLock.isHeldByCurrentThread()) {
                 fairLock.unlock();
-                System.out.println(" [FairLock] Lock released: " + lockKey);
+                log.info("Fair lock released: lockKey={}, thread={}", lockKey, Thread.currentThread().getName());
             }
         }
     }
@@ -198,22 +202,41 @@ public class DistributedLockServiceImpl implements DistributedLockService {
     @Override
     public Map<String, Object> testRaceCondition(String eventId, String seatLabel, int threads) {
         String lockKey = DistributedLockService.createSeatLockKey(eventId, seatLabel);
+        Map<String, Object> response = initializeRaceConditionResponse(lockKey, threads);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("lockKey", lockKey);
-        response.put("threadCount", threads);
-
-        try {
-            unlock(lockKey);
-        } catch (Exception ignored) {
-        }
+        ensureLockUnlocked(lockKey);
 
         final int[] successCount = {0};
         final int[] failCount = {0};
         final String[] winner = {null};
 
-        Thread[] threadArray = new Thread[threads];
-        for (int i = 0; i < threads; i++) {
+        Thread[] threadArray = createRaceConditionThreads(lockKey, threads, successCount, failCount, winner);
+        long duration = runThreadsAndWait(threadArray);
+
+        buildRaceConditionResponse(response, successCount[0], failCount[0], winner[0], duration, lockKey);
+
+        return response;
+    }
+
+    private Map<String, Object> initializeRaceConditionResponse(String lockKey, int threads) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("lockKey", lockKey);
+        response.put("threadCount", threads);
+        return response;
+    }
+
+    private void ensureLockUnlocked(String lockKey) {
+        try {
+            unlock(lockKey);
+        } catch (Exception ignored) {
+            log.debug("Lock was already unlocked or does not exist: lockKey={}", lockKey);
+        }
+    }
+
+    private Thread[] createRaceConditionThreads(String lockKey, int threadCount,
+            int[] successCount, int[] failCount, String[] winner) {
+        Thread[] threadArray = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
             threadArray[i] = new Thread(() -> {
                 try {
@@ -237,93 +260,119 @@ public class DistributedLockServiceImpl implements DistributedLockService {
                 }
             });
         }
+        return threadArray;
+    }
 
+    private long runThreadsAndWait(Thread[] threads) {
         long startTime = System.currentTimeMillis();
-        for (Thread t : threadArray) {
+
+        for (Thread t : threads) {
             t.start();
         }
 
-        for (Thread t : threadArray) {
+        for (Thread t : threads) {
             try {
                 t.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                log.warn("Thread join interrupted", e);
             }
         }
-        long duration = System.currentTimeMillis() - startTime;
 
-        response.put("successCount", successCount[0]);
-        response.put("failCount", failCount[0]);
-        response.put("winner", winner[0]);
+        return System.currentTimeMillis() - startTime;
+    }
+
+    private void buildRaceConditionResponse(Map<String, Object> response, int successCount,
+            int failCount, String winner, long duration, String lockKey) {
+        response.put("successCount", successCount);
+        response.put("failCount", failCount);
+        response.put("winner", winner);
         response.put("durationMs", duration);
         response.put("isLocked", isLocked(lockKey));
 
-        boolean testPassed = successCount[0] == 1;
+        boolean testPassed = successCount == 1;
         response.put("testPassed", testPassed);
         response.put("message", testPassed
                 ? "BAŞARILI: Sadece 1 thread kilidi aldı (Distributed Lock çalışıyor!)"
-                : "BAŞARISIZ: " + successCount[0] + " thread kilidi aldı (Race condition!)");
-
-        return response;
+                : "BAŞARISIZ: " + successCount + " thread kilidi aldı (Race condition!)");
     }
 
     @Override
     public Map<String, Object> testFairLock(String eventId, String seatLabel, int threads) {
         String lockKey = "fair:" + DistributedLockService.createSeatLockKey(eventId, seatLabel);
+        Map<String, Object> response = initializeFairLockResponse(lockKey, threads);
 
+        final List<String> completionOrder = new java.util.concurrent.CopyOnWriteArrayList<>();
+        Thread[] threadArray = createFairLockThreads(lockKey, threads, completionOrder);
+        long duration = runThreadsWithDelay(threadArray);
+
+        buildFairLockResponse(response, completionOrder, duration);
+
+        return response;
+    }
+
+    private Map<String, Object> initializeFairLockResponse(String lockKey, int threads) {
         Map<String, Object> response = new HashMap<>();
         response.put("lockKey", lockKey);
         response.put("threadCount", threads);
+        return response;
+    }
 
-        final List<String> completionOrder = new java.util.concurrent.CopyOnWriteArrayList<>();
-
-        Thread[] threadArray = new Thread[threads];
-        for (int i = 0; i < threads; i++) {
+    private Thread[] createFairLockThreads(String lockKey, int threadCount, List<String> completionOrder) {
+        Thread[] threadArray = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
             threadArray[i] = new Thread(() -> {
                 try {
-                    String result = executeWithFairLock(
+                    executeWithFairLock(
                             lockKey, 30, 5, TimeUnit.SECONDS,
                             () -> {
                                 completionOrder.add("Thread-" + threadId);
-                                try {
-                                    Thread.sleep(100);
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                }
+                                sleepSafely(100);
                                 return "Thread-" + threadId + " completed";
                             }
                     );
                 } catch (Exception e) {
                     completionOrder.add("Thread-" + threadId + " (FAILED)");
+                    log.warn("Fair lock test thread failed: threadId={}, error={}", threadId, e.getMessage());
                 }
             });
         }
+        return threadArray;
+    }
 
+    private long runThreadsWithDelay(Thread[] threads) {
         long startTime = System.currentTimeMillis();
-        for (Thread t : threadArray) {
+
+        for (Thread t : threads) {
             t.start();
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            sleepSafely(10);
         }
 
-        for (Thread t : threadArray) {
+        for (Thread t : threads) {
             try {
                 t.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                log.warn("Thread join interrupted", e);
             }
         }
-        long duration = System.currentTimeMillis() - startTime;
 
+        return System.currentTimeMillis() - startTime;
+    }
+
+    private void sleepSafely(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("Thread sleep interrupted");
+        }
+    }
+
+    private void buildFairLockResponse(Map<String, Object> response, List<String> completionOrder, long duration) {
         response.put("completionOrder", completionOrder);
         response.put("durationMs", duration);
         response.put("message", "Fair Lock ile FIFO sırasında işlem yapıldı");
-
-        return response;
     }
 }
-

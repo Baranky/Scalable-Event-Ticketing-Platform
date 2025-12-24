@@ -1,34 +1,37 @@
 package com.example.demo.service.impl;
 
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.demo.dto.OrderCompletedEvent;
 import com.example.demo.dto.PaymentEvent;
 import com.example.demo.dto.PaymentReq;
 import com.example.demo.dto.PaymentResponse;
-import com.example.demo.enums.PaymentStatus;
 import com.example.demo.entity.Payment;
 import com.example.demo.entity.PaymentOutbox;
+import com.example.demo.enums.PaymentStatus;
 import com.example.demo.repository.PaymentOutboxRepository;
 import com.example.demo.repository.PaymentRepository;
 import com.example.demo.service.PaymentService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
-
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentServiceImpl.class);
 
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxRepository paymentOutboxRepository;
     private final ObjectMapper objectMapper;
 
-
     public PaymentServiceImpl(PaymentRepository paymentRepository,
-                              PaymentOutboxRepository paymentOutboxRepository,
-                              ObjectMapper objectMapper) {
+            PaymentOutboxRepository paymentOutboxRepository,
+            ObjectMapper objectMapper) {
         this.paymentRepository = paymentRepository;
         this.paymentOutboxRepository = paymentOutboxRepository;
         this.objectMapper = objectMapper;
@@ -56,16 +59,17 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         Payment savedPayment = paymentRepository.save(payment);
-        System.out.println("    Payment kaydı oluşturuldu: " + savedPayment.getId());
+        log.info("Payment record created: paymentId={}, orderId={}, status={}",
+                savedPayment.getId(), savedPayment.getOrderId(), savedPayment.getStatus());
 
-        saveToOutbox(savedPayment, getPaymentEventType(status));
-        System.out.println("    Outbox kaydı oluşturuldu: " + getPaymentEventType(status));
+        String eventType = getPaymentEventType(status);
+        saveToOutbox(savedPayment, eventType);
+        log.info("Outbox record created: eventType={}, paymentId={}", eventType, savedPayment.getId());
 
         if (status == PaymentStatus.SUCCESS) {
             saveOrderCompletedToOutbox(savedPayment);
-            System.out.println("  Outbox kaydı oluşturuldu: ORDER_COMPLETED");
+            log.info("Outbox record created: eventType=ORDER_COMPLETED, orderId={}", savedPayment.getOrderId());
         }
-
 
         return toResponse(savedPayment);
     }
@@ -76,7 +80,6 @@ public class PaymentServiceImpl implements PaymentService {
         }
         return PaymentStatus.SUCCESS;
     }
-
 
     private void saveToOutbox(Payment payment, String eventType) {
         PaymentOutbox outbox = new PaymentOutbox();
@@ -90,7 +93,6 @@ public class PaymentServiceImpl implements PaymentService {
 
         paymentOutboxRepository.save(outbox);
     }
-
 
     private void saveOrderCompletedToOutbox(Payment payment) {
         PaymentOutbox outbox = new PaymentOutbox();
@@ -111,7 +113,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private String buildPaymentEventPayload(Payment payment, String eventType) {
         try {
-            return objectMapper.writeValueAsString( new PaymentEvent(
+            return objectMapper.writeValueAsString(new PaymentEvent(
                     eventType,
                     payment.getId(),
                     payment.getOrderId(),
@@ -169,8 +171,5 @@ public class PaymentServiceImpl implements PaymentService {
         String last4 = cardNumber.substring(cardNumber.length() - 4);
         return "**** **** **** " + last4;
     }
-
-
-
 
 }

@@ -6,15 +6,17 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.dto.TicketHistoryRes;
 import com.example.demo.dto.TicketPurchaseReq;
 import com.example.demo.dto.TicketRes;
-import com.example.demo.enums.TicketStatus;
 import com.example.demo.entity.Ticket;
 import com.example.demo.entity.TicketStock;
+import com.example.demo.enums.TicketStatus;
 import com.example.demo.repository.TicketRepository;
 import com.example.demo.service.TicketHistoryService;
 import com.example.demo.service.TicketService;
@@ -22,6 +24,8 @@ import com.example.demo.service.TicketStockService;
 
 @Service
 public class TicketServiceImpl implements TicketService {
+
+    private static final Logger log = LoggerFactory.getLogger(TicketServiceImpl.class);
 
     private final TicketRepository ticketRepository;
     private final TicketStockService ticketStockService;
@@ -38,6 +42,23 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional
     public List<TicketRes> purchaseTickets(TicketPurchaseReq request) {
+        TicketStock stock = loadAndValidateStock(request);
+        ticketStockService.decrementAvailableAndIncrementSold(request.stockId(), request.quantity());
+
+        List<Ticket> tickets = createTickets(request, stock);
+        List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
+
+        recordTicketHistory(savedTickets, request.userId());
+
+        log.info("Tickets created: count={}, userId={}, stockId={}",
+                savedTickets.size(), request.userId(), request.stockId());
+
+        return savedTickets.stream()
+                .map(this::mapToTicketRes)
+                .collect(Collectors.toList());
+    }
+
+    private TicketStock loadAndValidateStock(TicketPurchaseReq request) {
         TicketStock stock = ticketStockService.getStockEntityByIdWithLock(request.stockId())
                 .orElseThrow(() -> new RuntimeException("Stock not found: " + request.stockId()));
 
@@ -46,44 +67,45 @@ public class TicketServiceImpl implements TicketService {
                     + ", Available: " + stock.getAvailableCount());
         }
 
-        ticketStockService.decrementAvailableAndIncrementSold(request.stockId(), request.quantity());
+        return stock;
+    }
 
+    private List<Ticket> createTickets(TicketPurchaseReq request, TicketStock stock) {
         List<Ticket> tickets = new ArrayList<>();
         for (int i = 0; i < request.quantity(); i++) {
-            Ticket ticket = new Ticket();
-            ticket.setEventId(stock.getEventId());
-            ticket.setVenueId(stock.getVenueId());
-            ticket.setUserId(request.userId());
-            ticket.setSectionId(stock.getSectionId() != null ? stock.getSectionId() : "general");
-            ticket.setPriceCategoryId(stock.getPriceCategoryId());
-            ticket.setPurchasePrice(stock.getPrice());
-            ticket.setCurrency(stock.getCurrency());
-            ticket.setStatus(TicketStatus.SOLD);
-            ticket.setQrCode(generateQRCode());
-            ticket.setPurchasedAt(LocalDateTime.now());
-
-            if (request.seatLabels() != null && i < request.seatLabels().size()) {
-                ticket.setSeatLabel(request.seatLabels().get(i));
-            } else {
-                ticket.setSeatLabel("GA-" + (stock.getSoldCount() - request.quantity() + i + 1)); // General Admission
-            }
-
+            Ticket ticket = buildTicket(request, stock, i);
             tickets.add(ticket);
         }
+        return tickets;
+    }
 
-        List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
+    private Ticket buildTicket(TicketPurchaseReq request, TicketStock stock, int index) {
+        Ticket ticket = new Ticket();
+        ticket.setEventId(stock.getEventId());
+        ticket.setVenueId(stock.getVenueId());
+        ticket.setUserId(request.userId());
+        ticket.setSectionId(stock.getSectionId() != null ? stock.getSectionId() : "general");
+        ticket.setPriceCategoryId(stock.getPriceCategoryId());
+        ticket.setPurchasePrice(stock.getPrice());
+        ticket.setCurrency(stock.getCurrency());
+        ticket.setStatus(TicketStatus.SOLD);
+        ticket.setQrCode(generateQRCode());
+        ticket.setPurchasedAt(LocalDateTime.now());
 
-        for (Ticket ticket : savedTickets) {
-            ticketHistoryService.recordStatusChange(ticket, null, TicketStatus.SOLD,
-                    request.userId(), "User Purchase");
+        if (request.seatLabels() != null && index < request.seatLabels().size()) {
+            ticket.setSeatLabel(request.seatLabels().get(index));
+        } else {
+            ticket.setSeatLabel("GA-" + (stock.getSoldCount() - request.quantity() + index + 1));
         }
 
-        System.out.println("Created " + savedTickets.size() + " tickets for user: " + request.userId()
-                + ", stock: " + request.stockId());
+        return ticket;
+    }
 
-        return savedTickets.stream()
-                .map(this::mapToTicketRes)
-                .collect(Collectors.toList());
+    private void recordTicketHistory(List<Ticket> tickets, String userId) {
+        for (Ticket ticket : tickets) {
+            ticketHistoryService.recordStatusChange(ticket, null, TicketStatus.SOLD,
+                    userId, "User Purchase");
+        }
     }
 
     @Override
@@ -131,7 +153,7 @@ public class TicketServiceImpl implements TicketService {
         ticketHistoryService.recordStatusChange(saved, previousStatus, TicketStatus.USED,
                 usedBy, "QR Code Scanned");
 
-        System.out.println("Ticket used: " + ticketId);
+        log.info("Ticket used: ticketId={}, usedBy={}", ticketId, usedBy);
 
         return mapToTicketRes(saved);
     }
@@ -161,7 +183,7 @@ public class TicketServiceImpl implements TicketService {
         ticketHistoryService.recordStatusChange(saved, previousStatus, TicketStatus.REFUNDED,
                 refundedBy, reason != null ? reason : "Refund Request");
 
-        System.out.println("Ticket refunded: " + ticketId);
+        log.info("Ticket refunded: ticketId={}, refundedBy={}, reason={}", ticketId, refundedBy, reason);
 
         return mapToTicketRes(saved);
     }
