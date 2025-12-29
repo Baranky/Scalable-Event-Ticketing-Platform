@@ -20,16 +20,17 @@ public class PaymentEventConsumer {
 
     @KafkaListener(topics = "payment-events", groupId = "ticket-service-group")
     public void consumePaymentEvent(String message) {
+        System.out.println("📨 Received payment event: " + message);
         try {
             PaymentEvent event = objectMapper.readValue(message, PaymentEvent.class);
             
             if ("PAYMENT_SUCCESS".equals(event.eventType())) {
-                paymentEventHandlerService.handlePaymentSuccess(event.orderId());
+                paymentEventHandlerService.handlePaymentSuccess(event);
             } else if ("PAYMENT_FAILED".equals(event.eventType())) {
                 paymentEventHandlerService.handlePaymentFailed(event.orderId());
             }
         } catch (Exception e) {
-            System.err.println("Failed to process payment event: " + e.getMessage());
+            System.err.println("❌ Failed to process payment event: " + e.getMessage());
             e.printStackTrace();
         }
     }

@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 
@@ -26,7 +27,7 @@ public class OutboxService {
         this.objectMapper = objectMapper;
     }
 
-    public void saveOrderCreatedEvent(Order order, String stockId, int quantity, String eventId) {
+    public void saveOrderCreatedEvent(Order order, String stockId, int quantity, String eventId, List<String> seatLabels) {
         OrderOutbox outbox = createOutbox(order.getId(), "ORDER_CREATED");
         
         outbox.setPayload(toJson(Map.of(
@@ -38,7 +39,8 @@ public class OutboxService {
                 "eventId", eventId != null ? eventId : "",
                 "totalAmount", order.getTotalAmount().toString(),
                 "currency", order.getCurrency(),
-                "status", order.getStatus().name()
+                "status", order.getStatus().name(),
+                "seatLabels", seatLabels != null ? seatLabels : List.of()
         )));
         
         outboxRepository.save(outbox);
@@ -53,6 +55,8 @@ public class OutboxService {
                 "eventType", "ORDER_COMPLETED",
                 "orderId", order.getId(),
                 "userId", order.getUserId(),
+                "stockId", order.getStockId() != null ? order.getStockId() : "",
+                "quantity", order.getQuantity(),
                 "ticketCount", ticketCount,
                 "totalAmount", order.getTotalAmount().toString(),
                 "currency", order.getCurrency()

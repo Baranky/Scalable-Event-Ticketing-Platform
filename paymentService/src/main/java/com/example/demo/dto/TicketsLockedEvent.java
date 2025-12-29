@@ -1,14 +1,14 @@
 package com.example.demo.dto;
 
-public record PaymentEvent(
+public record TicketsLockedEvent(
         String eventType,
-        String paymentId,
         String orderId,
         String userId,
         String stockId,
         Integer quantity,
-        String amount,
+        String totalAmount,
         String currency,
-        String status,
-        String timestamp
+        Boolean success,
+        String failureReason
 ) {}
+

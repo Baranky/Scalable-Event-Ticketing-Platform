@@ -1,18 +1,23 @@
 package com.example.demo.service.impl;
 
-import com.example.demo.exception.LockAcquisitionException;
-import com.example.demo.service.DistributedLockService;
-import com.example.demo.service.SeatLockService;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-
+import com.example.demo.exception.LockAcquisitionException;
+import com.example.demo.service.DistributedLockService;
+import com.example.demo.service.SeatLockService;
 
 @Service
 public class SeatLockServiceImpl implements SeatLockService {
@@ -66,39 +71,6 @@ public class SeatLockServiceImpl implements SeatLockService {
             else
                 return 0  -- Yetki yok veya kilit yok
             end
-            """;
-
-    private static final String LOCK_GENERIC_LUA_SCRIPT = """
-            local genericKey = KEYS[1]
-            local totalKey = KEYS[2]
-            local orderId = ARGV[1]
-            local count = tonumber(ARGV[2])
-            local maxTotal = tonumber(ARGV[3])
-            local ttl = tonumber(ARGV[4])
-            
-            -- Mevcut toplam kilidi al
-            local currentTotal = tonumber(redis.call('GET', totalKey) or 0)
-            
-            -- Kapasite kontrolü
-            if currentTotal + count > maxTotal then
-                return -1  -- Yetersiz kapasite
-            end
-            
-            -- Mevcut generic lock kontrolü
-            local existingLock = redis.call('GET', genericKey)
-            if existingLock and existingLock ~= orderId then
-                return -2  -- Başka bir kilit var
-            end
-            
-            -- Kilidi oluştur/güncelle
-            redis.call('SET', genericKey, count, 'EX', ttl)
-            
-            -- Sadece yeni kilit ise total'ı artır
-            if not existingLock then
-                redis.call('INCRBY', totalKey, count)
-            end
-            
-            return count  -- Başarılı, kilitlenen sayı
             """;
 
     public SeatLockServiceImpl(
@@ -169,30 +141,38 @@ public class SeatLockServiceImpl implements SeatLockService {
         String distributedLockKey = DISTRIBUTED_LOCK_PREFIX + stockId + ":generic";
         long ttlSeconds = lockTtlMinutes * 60;
 
-
         try {
             return distributedLockService.executeWithLock(distributedLockKey, () -> {
                 String genericKey = GENERIC_LOCK_PREFIX + stockId + ":" + orderId;
                 String totalKey = TOTAL_LOCK_PREFIX + stockId;
 
-                Long result = redissonClient.getScript().eval(
-                        RScript.Mode.READ_WRITE,
-                        LOCK_GENERIC_LUA_SCRIPT,
-                        RScript.ReturnType.INTEGER,
-                        Arrays.asList(genericKey, totalKey),
-                        orderId, String.valueOf(count), String.valueOf(totalCount), String.valueOf(ttlSeconds)
-                );
+                // Mevcut toplam kilidi al
+                Object currentTotalObj = redisTemplate.opsForValue().get(totalKey);
+                int currentTotal = currentTotalObj != null ? Integer.parseInt(currentTotalObj.toString()) : 0;
 
-                if (result != null && result > 0) {
-                    System.out.println("   " + count + " generic koltuk kilitlendi (TTL: " + lockTtlMinutes + " dk)");
-                    return true;
-                } else if (result != null && result == -1) {
-                    System.out.println("   Yetersiz kapasite! Mevcut kilitli: " + getLockedCount(stockId) + ", Total: " + totalCount);
-                    return false;
-                } else {
-                    System.out.println("   Kilitleme başarısız: " + result);
+                // Kapasite kontrolü
+                if (currentTotal + count > totalCount) {
+                    System.out.println("   Yetersiz kapasite! Mevcut kilitli: " + currentTotal + ", Total: " + totalCount);
                     return false;
                 }
+
+                // Mevcut generic lock kontrolü
+                Object existingLock = redisTemplate.opsForValue().get(genericKey);
+                if (existingLock != null && !existingLock.toString().equals(orderId)) {
+                    System.out.println("   Başka bir kilit var: stockId=" + stockId + ", orderId=" + orderId);
+                    return false;
+                }
+
+                // Kilidi oluştur/güncelle
+                redisTemplate.opsForValue().set(genericKey, count, Duration.ofSeconds(ttlSeconds));
+
+                // Sadece yeni kilit ise total'ı artır
+                if (existingLock == null) {
+                    redisTemplate.opsForValue().increment(totalKey, count);
+                }
+
+                System.out.println("   " + count + " generic koltuk kilitlendi (TTL: " + lockTtlMinutes + " dk)");
+                return true;
             });
 
         } catch (LockAcquisitionException e) {
@@ -354,7 +334,6 @@ public class SeatLockServiceImpl implements SeatLockService {
             return 0;
         }
     }
-
 
     private void decrementTotalLock(String stockId, int count) {
         String key = TOTAL_LOCK_PREFIX + stockId;

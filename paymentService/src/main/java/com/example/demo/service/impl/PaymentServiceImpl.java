@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 
 @Service
@@ -24,6 +26,11 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxRepository paymentOutboxRepository;
     private final ObjectMapper objectMapper;
+    
+    // TICKETS_LOCKED event'inden gelen stockId ve quantity bilgisini saklamak için
+    private final Map<String, OrderTicketInfo> orderTicketInfoMap = new ConcurrentHashMap<>();
+    
+    private record OrderTicketInfo(String stockId, Integer quantity) {}
 
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
@@ -60,11 +67,9 @@ public class PaymentServiceImpl implements PaymentService {
 
         saveToOutbox(savedPayment, getPaymentEventType(status));
         System.out.println("    Outbox kaydı oluşturuldu: " + getPaymentEventType(status));
-
-        if (status == PaymentStatus.SUCCESS) {
-            saveOrderCompletedToOutbox(savedPayment);
-            System.out.println("  Outbox kaydı oluşturuldu: ORDER_COMPLETED");
-        }
+        
+        // ORDER_COMPLETED event'i artık Ticket Service'ten TICKETS_SOLD event'i olarak gelecek
+        // Payment Service sadece PAYMENT_SUCCESS event'i gönderir
 
 
         return toResponse(savedPayment);
@@ -111,11 +116,18 @@ public class PaymentServiceImpl implements PaymentService {
 
     private String buildPaymentEventPayload(Payment payment, String eventType) {
         try {
+            // TICKETS_LOCKED event'inden gelen bilgileri al
+            OrderTicketInfo ticketInfo = orderTicketInfoMap.get(payment.getOrderId());
+            String stockId = ticketInfo != null ? ticketInfo.stockId() : null;
+            Integer quantity = ticketInfo != null ? ticketInfo.quantity() : null;
+            
             return objectMapper.writeValueAsString( new PaymentEvent(
                     eventType,
                     payment.getId(),
                     payment.getOrderId(),
                     payment.getUserId(),
+                    stockId,
+                    quantity,
                     payment.getAmount().toString(),
                     payment.getCurrency(),
                     payment.getStatus().name(),
@@ -124,6 +136,11 @@ public class PaymentServiceImpl implements PaymentService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize payment event", e);
         }
+    }
+    
+    // TICKETS_LOCKED event'inden gelen bilgileri saklamak için public method
+    public void storeOrderTicketInfo(String orderId, String stockId, Integer quantity) {
+        orderTicketInfoMap.put(orderId, new OrderTicketInfo(stockId, quantity));
     }
 
     private String buildOrderCompletedPayload(Payment payment) {

@@ -5,6 +5,11 @@ public record PaymentEvent(
         String paymentId,
         String orderId,
         String userId,
-        String status
+        String stockId,
+        Integer quantity,
+        String amount,
+        String currency,
+        String status,
+        String timestamp
 ) {
 }

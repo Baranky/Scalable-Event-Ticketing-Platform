@@ -6,18 +6,23 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-import com.example.demo.dto.*;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.client.PaymentClient;
 import com.example.demo.client.TicketClient;
-import com.example.demo.enums.OrderStatus;
+import com.example.demo.dto.OrderCreateRequest;
+import com.example.demo.dto.OrderItemDto;
+import com.example.demo.dto.OrderResponse;
+import com.example.demo.dto.OrderSagaRequest;
+import com.example.demo.dto.SagaStatusResponse;
+import com.example.demo.dto.TicketStockResponse;
 import com.example.demo.entity.Order;
 import com.example.demo.entity.OrderItem;
 import com.example.demo.entity.OrderSaga;
+import com.example.demo.enums.OrderStatus;
 import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.OrderSagaRepository;
@@ -117,9 +122,11 @@ public class OrderServiceImpl implements OrderService {
 
         orderItemRepository.saveAll(items);
 
-        outboxService.saveOrderCreatedEvent(savedOrder, request.stockId(), request.quantity(), stock.eventId());
+        // ORDER_CREATED event'ini outbox'a kaydet - Ticket Service otomatik olarak biletleri kilitleyecek
+        outboxService.saveOrderCreatedEvent(savedOrder, request.stockId(), request.quantity(), stock.eventId(), request.seatLabels());
 
         log.info("Order created: orderId={}, stockId={}, quantity={}", savedOrder.getId(), request.stockId(), request.quantity());
+        log.info("ORDER_CREATED event saved - tickets will be locked automatically by Ticket Service");
         log.info("ORDER_CREATED event saved to outbox for orderId={}", savedOrder.getId());
 
         return toResponse(savedOrder, items);
@@ -135,38 +142,18 @@ public class OrderServiceImpl implements OrderService {
             throw new IllegalStateException("Order is not in PENDING status");
         }
 
-        List<String> seatLabels = orderItemRepository.findByOrder_Id(orderId).stream()
-                .map(OrderItem::getSeatLabel)
-                .collect(Collectors.toList());
-
-        List<TicketResponse> tickets = ticketClient.purchaseTickets(
-                new TicketPurchaseRequest(
-                        order.getUserId(),
-                        order.getStockId(),
-                        order.getQuantity(),
-                        seatLabels
-                )
-        );
-
-        List<OrderItem> items = orderItemRepository.findByOrder_Id(orderId);
-        for (int i = 0; i < items.size() && i < tickets.size(); i++) {
-            OrderItem item = items.get(i);
-            TicketResponse ticket = tickets.get(i);
-            item.setTicketId(ticket.id());
-            item.setQrCode(ticket.qrCode());
-            item.setEventId(ticket.eventId());
-            item.setSeatLabel(ticket.seatLabel());
-        }
-        orderItemRepository.saveAll(items);
-
+        // Event-driven yapıda ticket oluşturma işlemi Ticket Service'te yapılacak
+        // ORDER_COMPLETED event'i gönderilecek ve Ticket Service confirmSale + ticket oluşturma yapacak
+        
         order.setStatus(OrderStatus.COMPLETED);
         orderRepository.save(order);
 
-        outboxService.saveOrderCompletedEvent(order, tickets.size());
+        outboxService.saveOrderCompletedEvent(order, order.getQuantity());
 
-        log.info("Order completed: orderId={}, ticketCount={}", orderId, tickets.size());
+        log.info("Order completed: orderId={}, quantity={}", orderId, order.getQuantity());
         log.info("ORDER_COMPLETED event saved to outbox for orderId={}", orderId);
 
+        List<OrderItem> items = orderItemRepository.findByOrder_Id(orderId);
         return toResponse(order, items);
     }
 
