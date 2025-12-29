@@ -9,7 +9,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TicketsSoldConsumer {
+public  class TicketsSoldConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(TicketsSoldConsumer.class);
     private final ObjectMapper objectMapper;
@@ -28,12 +28,12 @@ public class TicketsSoldConsumer {
             TicketsSoldEvent event = objectMapper.readValue(message, TicketsSoldEvent.class);
 
             if ("TICKETS_SOLD".equals(event.eventType())) {
-                log.info("✅ Tickets sold for orderId: {}, completing order...", event.orderId());
+                log.info(" Tickets sold for orderId: {}, completing order...", event.orderId());
                 orderService.completeOrder(event.orderId());
-                log.info("✅ Order completed successfully for orderId: {}", event.orderId());
+                log.info(" Order completed successfully for orderId: {}", event.orderId());
             }
         } catch (Exception e) {
-            log.error("❌ Failed to process TICKETS_SOLD event: {}", e.getMessage(), e);
+            log.error(" Failed to process TICKETS_SOLD event: {}", e.getMessage(), e);
         }
     }
 }

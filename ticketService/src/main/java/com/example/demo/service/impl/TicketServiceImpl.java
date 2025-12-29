@@ -65,7 +65,7 @@ public class TicketServiceImpl implements TicketService {
             if (request.seatLabels() != null && i < request.seatLabels().size()) {
                 ticket.setSeatLabel(request.seatLabels().get(i));
             } else {
-                ticket.setSeatLabel("GA-" + (stock.getSoldCount() - request.quantity() + i + 1)); // General Admission
+                ticket.setSeatLabel("GA-" + (stock.getSoldCount() - request.quantity() + i + 1));
             }
 
             tickets.add(ticket);

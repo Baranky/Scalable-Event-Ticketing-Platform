@@ -146,27 +146,22 @@ public class SeatLockServiceImpl implements SeatLockService {
                 String genericKey = GENERIC_LOCK_PREFIX + stockId + ":" + orderId;
                 String totalKey = TOTAL_LOCK_PREFIX + stockId;
 
-                // Mevcut toplam kilidi al
-                Object currentTotalObj = redisTemplate.opsForValue().get(totalKey);
+               Object currentTotalObj = redisTemplate.opsForValue().get(totalKey);
                 int currentTotal = currentTotalObj != null ? Integer.parseInt(currentTotalObj.toString()) : 0;
 
-                // Kapasite kontrolü
                 if (currentTotal + count > totalCount) {
                     System.out.println("   Yetersiz kapasite! Mevcut kilitli: " + currentTotal + ", Total: " + totalCount);
                     return false;
                 }
 
-                // Mevcut generic lock kontrolü
                 Object existingLock = redisTemplate.opsForValue().get(genericKey);
                 if (existingLock != null && !existingLock.toString().equals(orderId)) {
                     System.out.println("   Başka bir kilit var: stockId=" + stockId + ", orderId=" + orderId);
                     return false;
                 }
 
-                // Kilidi oluştur/güncelle
                 redisTemplate.opsForValue().set(genericKey, count, Duration.ofSeconds(ttlSeconds));
 
-                // Sadece yeni kilit ise total'ı artır
                 if (existingLock == null) {
                     redisTemplate.opsForValue().increment(totalKey, count);
                 }
@@ -193,14 +188,14 @@ public class SeatLockServiceImpl implements SeatLockService {
                 String genericKey = GENERIC_LOCK_PREFIX + stockId + ":" + orderId;
                 redisTemplate.delete(genericKey);
                 decrementTotalLock(stockId, count);
-                System.out.println("✅ Satış onaylandı: " + count + " koltuk, Order: " + orderId);
+                System.out.println(" Satış onaylandı: " + count + " koltuk, Order: " + orderId);
                 return null;
             });
         } catch (Exception e) {
             String genericKey = GENERIC_LOCK_PREFIX + stockId + ":" + orderId;
             redisTemplate.delete(genericKey);
             decrementTotalLock(stockId, count);
-            System.out.println("✅ Satış onaylandı (fallback): " + count + " koltuk");
+            System.out.println(" Satış onaylandı (fallback): " + count + " koltuk");
         }
     }
 
@@ -217,7 +212,7 @@ public class SeatLockServiceImpl implements SeatLockService {
                     redisTemplate.delete(genericKey);
                     int unlockCount = Integer.parseInt(existingCount.toString());
                     decrementTotalLock(stockId, unlockCount);
-                    System.out.println("🔓 Generic kilit açıldı: " + unlockCount + " koltuk, Order: " + orderId);
+                    System.out.println(" Generic kilit açıldı: " + unlockCount + " koltuk, Order: " + orderId);
                 }
                 return null;
             });

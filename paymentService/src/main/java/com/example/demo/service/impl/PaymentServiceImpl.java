@@ -4,9 +4,9 @@ import com.example.demo.dto.OrderCompletedEvent;
 import com.example.demo.dto.PaymentEvent;
 import com.example.demo.dto.PaymentReq;
 import com.example.demo.dto.PaymentResponse;
-import com.example.demo.enums.PaymentStatus;
 import com.example.demo.entity.Payment;
 import com.example.demo.entity.PaymentOutbox;
+import com.example.demo.enums.PaymentStatus;
 import com.example.demo.repository.PaymentOutboxRepository;
 import com.example.demo.repository.PaymentRepository;
 import com.example.demo.service.PaymentService;
@@ -15,9 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 
 @Service
@@ -27,7 +27,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentOutboxRepository paymentOutboxRepository;
     private final ObjectMapper objectMapper;
     
-    // TICKETS_LOCKED event'inden gelen stockId ve quantity bilgisini saklamak için
     private final Map<String, OrderTicketInfo> orderTicketInfoMap = new ConcurrentHashMap<>();
     
     private record OrderTicketInfo(String stockId, Integer quantity) {}
@@ -67,10 +66,6 @@ public class PaymentServiceImpl implements PaymentService {
 
         saveToOutbox(savedPayment, getPaymentEventType(status));
         System.out.println("    Outbox kaydı oluşturuldu: " + getPaymentEventType(status));
-        
-        // ORDER_COMPLETED event'i artık Ticket Service'ten TICKETS_SOLD event'i olarak gelecek
-        // Payment Service sadece PAYMENT_SUCCESS event'i gönderir
-
 
         return toResponse(savedPayment);
     }
@@ -116,7 +111,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     private String buildPaymentEventPayload(Payment payment, String eventType) {
         try {
-            // TICKETS_LOCKED event'inden gelen bilgileri al
             OrderTicketInfo ticketInfo = orderTicketInfoMap.get(payment.getOrderId());
             String stockId = ticketInfo != null ? ticketInfo.stockId() : null;
             Integer quantity = ticketInfo != null ? ticketInfo.quantity() : null;
@@ -138,7 +132,6 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
     
-    // TICKETS_LOCKED event'inden gelen bilgileri saklamak için public method
     public void storeOrderTicketInfo(String orderId, String stockId, Integer quantity) {
         orderTicketInfoMap.put(orderId, new OrderTicketInfo(stockId, quantity));
     }

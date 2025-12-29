@@ -239,7 +239,6 @@ public class OrderSagaOrchestrator {
     }
 
     private void compensateLockTickets(Order order) {
-        // Bilet kilidini aç
         ticketClient.unlockTickets(order.getStockId(), order.getQuantity(), order.getId());
         System.out.println("   🔓 Bilet kilidi açıldı: " + order.getQuantity() + " adet");
     }

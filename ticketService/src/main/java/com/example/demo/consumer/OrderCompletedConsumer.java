@@ -20,12 +20,12 @@ public class OrderCompletedConsumer {
 
     @KafkaListener(topics = "order-events", groupId = "ticket-service-group")
     public void consumeOrderCompleted(String message) {
-        System.out.println("📨 Received ORDER_COMPLETED event: " + message);
+        System.out.println("Received ORDER_COMPLETED event: " + message);
         try {
             OrderCompletedEvent event = objectMapper.readValue(message, OrderCompletedEvent.class);
 
             if ("ORDER_COMPLETED".equals(event.eventType())) {
-                System.out.println("✅ Confirming sale for orderId: " + event.orderId() 
+                System.out.println("Confirming sale for orderId: " + event.orderId()
                         + ", stockId: " + event.stockId()
                         + ", quantity: " + event.quantity());
 
@@ -36,13 +36,13 @@ public class OrderCompletedConsumer {
                 );
 
                 if (confirmed) {
-                    System.out.println("✅ Sale confirmed successfully for orderId: " + event.orderId());
+                    System.out.println("Sale confirmed successfully for orderId: " + event.orderId());
                 } else {
-                    System.err.println("❌ Failed to confirm sale for orderId: " + event.orderId());
+                    System.err.println(" Failed to confirm sale for orderId: " + event.orderId());
                 }
             }
         } catch (Exception e) {
-            System.err.println("❌ Failed to process ORDER_COMPLETED event: " + e.getMessage());
+            System.err.println(" Failed to process ORDER_COMPLETED event: " + e.getMessage());
             e.printStackTrace();
         }
     }

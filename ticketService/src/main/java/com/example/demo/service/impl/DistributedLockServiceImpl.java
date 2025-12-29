@@ -53,7 +53,6 @@ public class DistributedLockServiceImpl implements DistributedLockService {
                 System.out.println(" Lock not held by current thread, cannot unlock: " + lockKey);
             }
         } catch (IllegalMonitorStateException e) {
-            // Kilit zaten serbest bırakılmış veya expire olmuş
             System.out.println("Lock already released or expired: " + lockKey);
         }
     }

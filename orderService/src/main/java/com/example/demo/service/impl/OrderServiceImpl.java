@@ -122,7 +122,6 @@ public class OrderServiceImpl implements OrderService {
 
         orderItemRepository.saveAll(items);
 
-        // ORDER_CREATED event'ini outbox'a kaydet - Ticket Service otomatik olarak biletleri kilitleyecek
         outboxService.saveOrderCreatedEvent(savedOrder, request.stockId(), request.quantity(), stock.eventId(), request.seatLabels());
 
         log.info("Order created: orderId={}, stockId={}, quantity={}", savedOrder.getId(), request.stockId(), request.quantity());
@@ -141,10 +140,6 @@ public class OrderServiceImpl implements OrderService {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Order is not in PENDING status");
         }
-
-        // Event-driven yapıda ticket oluşturma işlemi Ticket Service'te yapılacak
-        // ORDER_COMPLETED event'i gönderilecek ve Ticket Service confirmSale + ticket oluşturma yapacak
-        
         order.setStatus(OrderStatus.COMPLETED);
         orderRepository.save(order);
 

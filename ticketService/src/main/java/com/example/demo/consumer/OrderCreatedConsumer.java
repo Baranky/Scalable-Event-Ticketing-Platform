@@ -30,12 +30,12 @@ public class OrderCreatedConsumer {
 
     @KafkaListener(topics = "order-events", groupId = "ticket-service-group")
     public void consumeOrderCreated(String message) {
-        System.out.println("📨 Received ORDER_CREATED event: " + message);
+        System.out.println(" Received ORDER_CREATED event: " + message);
         try {
             OrderCreatedEvent event = objectMapper.readValue(message, OrderCreatedEvent.class);
 
             if ("ORDER_CREATED".equals(event.eventType())) {
-                System.out.println("🔒 Locking tickets for orderId: " + event.orderId()
+                System.out.println(" Locking tickets for orderId: " + event.orderId()
                         + ", stockId: " + event.stockId()
                         + ", quantity: " + event.quantity());
 
@@ -46,12 +46,11 @@ public class OrderCreatedConsumer {
                         event.seatLabels()
                 );
 
-                // seatLabels bilgisini sakla (PAYMENT_SUCCESS'te kullanmak için)
+
                 if (locked && event.seatLabels() != null && !event.seatLabels().isEmpty()) {
                     paymentEventHandlerService.storeOrderSeatLabels(event.orderId(), event.seatLabels());
                 }
 
-                // TICKETS_LOCKED event'i gönder
                 TicketsLockedEvent ticketsLockedEvent = new TicketsLockedEvent(
                         "TICKETS_LOCKED",
                         event.orderId(),
@@ -68,15 +67,15 @@ public class OrderCreatedConsumer {
                 kafkaTemplate.send("ticket-events", event.orderId(), payload);
 
                 if (locked) {
-                    System.out.println("✅ Tickets locked successfully for orderId: " + event.orderId());
-                    System.out.println("📤 TICKETS_LOCKED event sent to Kafka");
+                    System.out.println(" Tickets locked successfully for orderId: " + event.orderId());
+                    System.out.println("TICKETS_LOCKED event sent to Kafka");
                 } else {
-                    System.err.println("❌ Failed to lock tickets for orderId: " + event.orderId());
-                    System.err.println("📤 TICKETS_LOCKED (failed) event sent to Kafka");
+                    System.err.println("Failed to lock tickets for orderId: " + event.orderId());
+                    System.err.println("TICKETS_LOCKED (failed) event sent to Kafka");
                 }
             }
         } catch (Exception e) {
-            System.err.println("❌ Failed to process ORDER_CREATED event: " + e.getMessage());
+            System.err.println("Failed to process ORDER_CREATED event: " + e.getMessage());
             e.printStackTrace();
         }
     }
